@@ -1,0 +1,422 @@
+#include <iostream>
+#include <cstring>
+#include <iomanip>
+#include <cmath>
+#include <limits>
+#include <algorithm>
+#include <vector>
+#include<string>
+
+using namespace std;
+
+const int MAX_EVENTS = 100;
+
+class User {
+public:
+    string name;
+    string address;
+    string id;
+    string phone;
+    string date;
+    float payment_advance;
+    int booking_id;
+};
+
+class Event {
+public:
+    int time;
+    char stype;
+    string venue;
+    int guests;
+    int eventNumber;
+    int cost;
+    bool isBooked;
+    User user;
+
+    Event addEvent(int evNum) {
+        Event newEvent;
+        newEvent.eventNumber = evNum;
+
+        cout << "\n    Total Guests: ";
+        while (!(cin >> newEvent.guests )) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "    Invalid input. Please enter a number: ";
+        }
+
+        cout << "\n    Total Time (in minutes): ";
+        while (!(cin >> newEvent.time) ){
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "    Invalid input. Please enter a number: ";
+        }
+
+        cout << "\n    Venue Name: ";
+        cin.ignore();
+        getline(cin, newEvent.venue);
+
+        newEvent.isBooked = false;
+        cout << "\n    Event Added Successfully!";
+        return newEvent;
+    }
+
+    void displayEvent() const {
+        cout << "\n\n   Event Information:";
+        cout << "\n   Event Number: " << eventNumber;
+        cout << "\n   Total Guests: " << guests;
+        cout << "\n   Total Time: " << time << " minutes";
+        cout << "\n   Venue: " << venue;
+        cout << "\n   Status: " << (isBooked ? "Booked" : "Available");
+
+        if (isBooked) {
+            cout << "\n\n   User Information:";
+            cout << "\n   Name: " << user.name;
+            cout << "\n   Booking ID: " << user.booking_id;
+        }
+    }
+};
+
+class EventManager {
+private:
+    vector<Event> events;
+
+    bool caseInsensitiveCompare(const string& a, const string& b) const {
+        if (a.length() != b.length()) return false;
+        for (size_t i = 0; i < a.length(); ++i) {
+            if (tolower(a[i]) != tolower(b[i])) return false;
+        }
+        return true;
+    }
+
+public:
+    void addEvent() {
+        if (events.size() >= MAX_EVENTS) {
+            cout << "\n   Maximum events reached!";
+            return;
+        }
+
+        int evNum;
+        cout << "\n   Enter Event Number: ";
+        while (!(cin >> evNum)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "   Invalid input. Please enter a number: ";
+        }
+
+        for (const auto& event : events) {
+            if (event.eventNumber == evNum) {
+                cout << "\n   Event number already exists!";
+                return;
+            }
+        }
+
+        Event newEvent;
+        events.push_back(newEvent.addEvent(evNum));
+    }
+
+    void searchEvent(int evNum) const {
+        bool found = false;
+        for (const auto& event : events) {
+            if (event.eventNumber == evNum) {
+                event.displayEvent();
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            cout << "\n   Event not found!";
+        }
+    }
+
+    void checkIn() {
+        if (events.empty()) {
+            cout << "\n   No events available!";
+            return;
+        }
+
+        int evNum;
+        cout << "\n   Enter Event Number: ";
+        while (!(cin >> evNum)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "   Invalid input. Please enter a number: ";
+        }
+
+        for (auto& event : events) {
+            if (event.eventNumber == evNum) {
+                if (event.isBooked) {
+                    cout << "\n   Event is already booked!";
+                    return;
+                }
+
+                cout << "\n   Enter Booking ID: ";
+                while (!(cin >> event.user.booking_id)) {
+                    cin.clear();
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    cout << "   Invalid input. Please enter a number: ";
+                }
+
+                cout << "\n   Enter User Name: ";
+                cin.ignore();
+                getline(cin, event.user.name);
+
+                cout << "\n   Enter Address (city only): ";
+                getline(cin, event.user.address);
+
+                cout << "\n   Enter Phone: ";
+                while (true) {
+                    getline(cin, event.user.phone);
+                    if (event.user.phone.length() >= 10 &&
+                        all_of(event.user.phone.begin(), event.user.phone.end(), ::isdigit)) {
+                        break;
+                    }
+                    cout << "   Invalid phone number. Please enter at least 10 digits: ";
+                }
+
+                cout << "\n   Enter Date (DD/MM/YYYY): ";
+                getline(cin, event.user.date);
+
+                cout << "\n   Enter Advance Payment: ";
+                while (!(cin >> event.user.payment_advance)) {
+                    cin.clear();
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    cout << "   Invalid input. Please enter a number: ";
+                }
+
+                event.isBooked = true;
+                cout << "\n   Booking confirmed!";
+                return;
+            }
+        }
+
+        cout << "\n   Event not found!";
+    }
+
+    void displayAvailableEvents() const {
+        if (events.empty()) {
+            cout << "\n   No events available!";
+            return;
+        }
+
+        bool availableFound = false;
+        for (const auto& event : events) {
+            if (!event.isBooked) {
+                event.displayEvent();
+                cout << "\n\n   Press Enter to continue...";
+                cin.ignore();
+                cin.get();
+                availableFound = true;
+            }
+        }
+
+        if (!availableFound) {
+            cout << "\n   All events are booked!";
+        }
+    }
+
+    void searchUser(const string& name) const {
+        bool found = false;
+        for (const auto& event : events) {
+            if (event.isBooked && caseInsensitiveCompare(event.user.name, name)) {
+                cout << "\n   User found:";
+                event.displayEvent();
+                found = true;
+            }
+        }
+
+        if (!found) {
+            cout << "\n   No bookings found for this user.";
+        }
+    }
+
+    void checkOut(int evNum) {
+        for (auto& event : events) {
+            if (event.eventNumber == evNum && event.isBooked) {
+                // Calculate costs
+                const double PER_HOUR_COST = 30.00;
+                const double PER_MIN_COST = 0.50;
+                const double COST_PER_MEAL = 100.00;
+                const double PARKING_COST = 1000.00;
+                const double LIGHTING_COST = 1500.00;
+
+                int totalGuests = event.guests;
+                int totalTime = event.time;
+
+                // Calculate staff needed (1 staff per 10 guests)
+                int staffNeeded = ceil(totalGuests / 10.0);
+
+                // Calculate staff costs
+                double staffHours = totalTime / 60.0;
+                double staffMinutes = totalTime % 60;
+                double staffCost = staffNeeded * (staffHours * PER_HOUR_COST + staffMinutes * PER_MIN_COST);
+
+                // Calculate food cost
+                double foodCost = totalGuests * COST_PER_MEAL;
+
+                // Calculate average cost per person
+                double avgCostPerPerson = foodCost / totalGuests;
+
+                // Calculate total cost
+                double totalCost = foodCost + staffCost + PARKING_COST + LIGHTING_COST;
+                double depositNeeded = totalCost * 0.3;
+
+                // Display bill
+                cout << "\n\n   ----------- Event Bill -----------";
+                cout << "\n   Event Number: " << event.eventNumber;
+                cout << "\n   User Name: " << event.user.name;
+                cout << "\n   Total Guests: " << totalGuests;
+                cout << "\n   Total Time: " << totalTime << " minutes";
+                cout << "\n   Staff Needed: " << staffNeeded;
+                cout << "\n   Food Cost: " << fixed << setprecision(2) << foodCost;
+                cout << "\n   Staff Cost: " << staffCost;
+                cout << "\n   Additional Costs: " << (PARKING_COST + LIGHTING_COST);
+                cout << "\n   Average Cost Per Person: " << avgCostPerPerson;
+                cout << "\n   Total Cost: " << totalCost;
+                cout << "\n   Advance Paid: " << event.user.payment_advance;
+                cout << "\n   Balance Due: " << (totalCost - event.user.payment_advance);
+
+                // Process payment
+                cout << "\n\n   Proceed with payment? (Y/N): ";
+                char choice;
+                cin >> choice;
+
+                if (toupper(choice) == 'Y') {
+                    class Account {
+                        int accountNo;
+                    public:
+                        Account() {
+                            cout << "\n   Enter Account Number: ";
+                            while (!(cin >> accountNo)) {
+                                cin.clear();
+                                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                                cout << "   Invalid input. Please enter a number: ";
+                            }
+                        }
+
+                        void deposit(double amount) {
+                            cout << "\n   Processing payment of " << fixed << setprecision(2) << amount;
+                            cout << "\n   Payment successful!";
+                            cout << "\n   Transaction details sent to account " << accountNo;
+                        }
+                    };
+
+                    double amount = totalCost - event.user.payment_advance;
+                    Account acc;
+                    acc.deposit(amount);
+
+                    event.isBooked = false;
+                    cout << "\n   Check-out complete!";
+                }
+                else {
+                    cout << "\n   Payment cancelled. Check-out aborted.";
+                }
+
+                return;
+            }
+        }
+
+        cout << "\n   No booked event found with this number!";
+    }
+
+    void displayGuestSummary(const string& name) const {
+        bool found = false;
+        for (const auto& event : events) {
+            if (event.isBooked && (name.empty() || caseInsensitiveCompare(event.user.name, name))) {
+                cout << "\n   Guest Summary:";
+                event.displayEvent();
+                found = true;
+            }
+        }
+
+        if (!found) {
+            cout << "\n   No bookings found";
+        }
+    }
+
+    void displayAboutUs() const {
+        cout << "\n   ----------- About Us -----------";
+        cout << "\n   Event Management System";
+        cout << "\n   Contact: event@example.com";
+        cout << "\n   Phone: 123-456-7890";
+        cout << "\n   Address: 123 Main St, City";
+    }
+};
+
+void displayMainMenu() {
+    cout << "\n\n   ----------- MAIN MENU -----------";
+    cout << "\n   1. Add Event";
+    cout << "\n   2. Book Event";
+    cout << "\n   3. View Available Events";
+    cout << "\n   4. Search User";
+    cout << "\n   5. Check Out";
+    cout << "\n   6. Guest Summary";
+    cout << "\n   7. About Us";
+    cout << "\n   8. Exit";
+    cout << "\n   Enter your choice: ";
+}
+
+int main() {
+    EventManager manager;
+    int choice;
+    string name;
+
+    do {
+        displayMainMenu();
+        while (!(cin >> choice)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "   Invalid input. Please enter a number (1-8): ";
+        }
+
+        switch (choice) {
+        case 1:
+            manager.addEvent();
+            break;
+        case 2:
+            manager.checkIn();
+            break;
+        case 3:
+            manager.displayAvailableEvents();
+            break;
+        case 4:
+            cout << "\n   Enter user name to search: ";
+            cin.ignore();
+            getline(cin, name);
+            manager.searchUser(name);
+            break;
+        case 5:
+            int evNum;
+            cout << "\n   Enter event number to check out: ";
+            while (!(cin >> evNum)) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "   Invalid input. Please enter a number: ";
+            }
+            manager.checkOut(evNum);
+            break;
+        case 6:
+            cout << "\n   Enter user name (leave blank for all): ";
+            cin.ignore();
+            getline(cin, name);
+            manager.displayGuestSummary(name);
+            break;
+        case 7:
+            manager.displayAboutUs();
+            break;
+        case 8:
+            cout << "\n   Thank you for using our system!";
+            break;
+        default:
+            cout << "\n   Invalid choice! Please try again.";
+        }
+
+        if (choice != 8) {
+            cout << "\n\n   Press Enter to continue...";
+            cin.ignore();
+            cin.get();
+        }
+    } while (choice != 8);
+
+    return 0;
+}

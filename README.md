@@ -1,3 +1,9 @@
+#include <iostream>
+
+using namespace std;
+
+int main(){
+
 struct EventDetails{
   string name;
   string date;
@@ -18,3 +24,5 @@ struct AttendanceRecord{
   Participant participant;
   string status;
 };
+
+}

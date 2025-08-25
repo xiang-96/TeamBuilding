@@ -1,0 +1,703 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <sstream>
+#include <algorithm>
+#include <iomanip>
+
+using namespace std;
+
+// Registration struct to store participant registration data
+struct Registration {
+    int registrationID;
+    string participantName;
+    string participantID;
+    string companyName;
+    string phoneNumber;
+    int eventID;
+    string eventName;
+    string eventDate;
+    string eventVenue;
+};
+
+// Event struct to store event information from event.txt
+struct Event {
+    int eventID;
+    string eventName;
+    string eventDate;
+    string eventVenue;
+    string requiredEquipment;
+};
+
+// Global vectors to store data
+vector<Registration> registrations;
+vector<Event> events;
+int nextRegistrationID = 1;
+
+// Function prototypes
+void loadEvents();
+void loadRegistrations();
+void saveRegistrations();
+void displayEvents();
+void registerEvent();
+void searchEvent();
+void updateEvent();
+void deleteEvent();
+void displayMenu();
+bool isValidEventID(int eventID);
+bool isAlreadyRegistered(const string& participantID, int eventID);
+bool isValidInput(const string& input);
+bool isValidPhoneNumber(const string& phone);
+string generateParticipantID();
+vector<Registration> getUserRegistrations(const string& participantID);
+vector<Registration> getUserRegistrationsByName(const string& participantName);
+
+
+int main() {
+    loadEvents();
+    loadRegistrations();
+
+    int choice;
+
+    do {
+        displayMenu();
+        cout << "Enter your choice: ";
+        cin >> choice;
+        cin.ignore(); // Clear input buffer
+
+        switch (choice) {
+        case 1:
+            registerEvent();
+            break;
+        case 2:
+            searchEvent();
+            break;
+        case 3:
+            updateEvent();
+            break;
+        case 4:
+            deleteEvent();
+            break;
+        case 5:
+            cout << "Thank you for using Event Registration System!\n";
+            break;
+        default:
+            cout << "Invalid choice! Please try again.\n";
+        }
+
+        if (choice != 5) {
+            cout << "\nPress Enter to continue...";
+            cin.get();
+        }
+
+    } while (choice != 5);
+
+    return 0;
+}
+
+void loadEvents() {
+    ifstream file("events.txt");
+    events.clear();
+
+    if (!file.is_open()) {
+        cout << "Warning: event.txt not found. Creating sample events...\n";
+        // Create sample events if file doesn't exist
+        events.push_back({ 1, "Team Building Workshop", "2024-09-15", "Conference Room A", "Projector, Whiteboard" });
+        events.push_back({ 2, "Leadership Training", "2024-09-20", "Training Hall B", "Microphone, Laptop" });
+        events.push_back({ 3, "Communication Skills", "2024-09-25", "Seminar Room C", "Flipchart, Markers" });
+        return;
+    }
+
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        Event event;
+        string temp;
+
+        getline(ss, temp, ',');
+        event.eventID = stoi(temp);
+        getline(ss, event.eventName, ',');
+        getline(ss, event.eventDate, ',');
+        getline(ss, event.eventVenue, ',');
+        getline(ss, event.requiredEquipment);
+
+        events.push_back(event);
+    }
+    file.close();
+}
+
+void loadRegistrations() {
+    ifstream file("registrations.txt");
+    registrations.clear();
+    nextRegistrationID = 1;
+
+    if (!file.is_open()) {
+        return; // File doesn't exist yet, that's okay
+    }
+
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        Registration reg;
+        string temp;
+
+        getline(ss, temp, ',');
+        reg.registrationID = stoi(temp);
+        getline(ss, reg.participantName, ',');
+        getline(ss, reg.participantID, ',');
+        getline(ss, reg.companyName, ',');
+        getline(ss, reg.phoneNumber, ',');
+        getline(ss, temp, ',');
+        reg.eventID = stoi(temp);
+        getline(ss, reg.eventName, ',');
+        getline(ss, reg.eventDate, ',');
+        getline(ss, reg.eventVenue);
+
+        registrations.push_back(reg);
+
+        if (reg.registrationID >= nextRegistrationID) {
+            nextRegistrationID = reg.registrationID + 1;
+        }
+    }
+    file.close();
+}
+
+void saveRegistrations() {
+    ofstream file("registrations.txt");
+
+    if (!file.is_open()) {
+        cout << "Error: Unable to save registrations to file!\n";
+        return;
+    }
+
+    for (const auto& reg : registrations) {
+        file << reg.registrationID << ","
+            << reg.participantName << ","
+            << reg.participantID << ","
+            << reg.companyName << ","
+            << reg.phoneNumber << ","
+            << reg.eventID << ","
+            << reg.eventName << ","
+            << reg.eventDate << ","
+            << reg.eventVenue << "\n";
+    }
+    file.close();
+}
+
+void displayEvents() {
+    if (events.empty()) {
+        cout << "No events available.\n";
+        return;
+    }
+
+    cout << "\n=== AVAILABLE EVENTS ===\n";
+    cout << left << setw(5) << "ID" << setw(25) << "Event Name"
+        << setw(15) << "Date" << setw(20) << "Venue"
+        << "Equipment\n";
+    cout << string(80, '-') << "\n";
+
+    for (const auto& event : events) {
+        cout << left << setw(5) << event.eventID
+            << setw(25) << event.eventName
+            << setw(15) << event.eventDate
+            << setw(20) << event.eventVenue
+            << event.requiredEquipment << "\n";
+    }
+}
+
+void registerEvent() {
+    cout << "\n=== EVENT REGISTRATION ===\n";
+
+    displayEvents();
+
+    if (events.empty()) {
+        cout << "No events available for registration.\n";
+        return;
+    }
+
+    Registration newReg;
+    newReg.registrationID = nextRegistrationID++;
+
+    // Get participant details
+    cout << "\nEnter participant details:\n";
+
+    // Validate participant name
+    do {
+        cout << "Participant Name: ";
+        getline(cin, newReg.participantName);
+        if (!isValidInput(newReg.participantName)) {
+            cout << "Error: Participant name cannot be empty!\n";
+        }
+    } while (!isValidInput(newReg.participantName));
+
+    // Auto-generate participant ID
+    newReg.participantID = generateParticipantID();
+    cout << "Auto-generated Participant ID: " << newReg.participantID << "\n";
+
+    // Validate company name
+    do {
+        cout << "Company Name: ";
+        getline(cin, newReg.companyName);
+        if (!isValidInput(newReg.companyName)) {
+            cout << "Error: Company name cannot be empty!\n";
+        }
+    } while (!isValidInput(newReg.companyName));
+
+    // Phone number validation
+    do {
+        cout << "Phone Number (10 digits): ";
+        getline(cin, newReg.phoneNumber);
+        if (!isValidPhoneNumber(newReg.phoneNumber)) {
+            cout << "Error: Phone number must be exactly 10 digits!\n";
+        }
+    } while (!isValidPhoneNumber(newReg.phoneNumber));
+
+    // Get event selection
+    cout << "Select Event ID: ";
+    cin >> newReg.eventID;
+    cin.ignore();
+
+    if (!isValidEventID(newReg.eventID)) {
+        cout << "Error: Invalid Event ID! Registration cancelled.\n";
+        return;
+    }
+
+    if (isAlreadyRegistered(newReg.participantID, newReg.eventID)) {
+        cout << "Error: You are already registered for this event!\n";
+        return;
+    }
+
+    // Find event details and add to registration
+    for (const auto& event : events) {
+        if (event.eventID == newReg.eventID) {
+            newReg.eventName = event.eventName;
+            newReg.eventDate = event.eventDate;
+            newReg.eventVenue = event.eventVenue;
+            break;
+        }
+    }
+
+    registrations.push_back(newReg);
+    saveRegistrations();
+
+    cout << "\nRegistration successful!\n";
+    cout << "Registration ID: " << newReg.registrationID << "\n";
+    cout << "Event: " << newReg.eventName << "\n";
+    cout << "Date: " << newReg.eventDate << "\n";
+    cout << "Venue: " << newReg.eventVenue << "\n";
+}
+
+void searchEvent() {
+    cout << "\n=== VIEW MY REGISTRATIONS ===\n";
+    cout << "1. View all registrations\n";
+    cout << "2. Search by Event ID\n";
+    cout << "3. Search by Participant ID\n";
+    cout << "Enter choice: ";
+
+    int choice;
+    cin >> choice;
+    cin.ignore();
+
+    if (registrations.empty()) {
+        cout << "No registrations found.\n";
+        return;
+    }
+
+    vector<Registration> results;
+
+    switch (choice) {
+    case 1:
+        results = registrations;
+        break;
+    case 2: {
+        int eventID;
+        cout << "Enter Event ID: ";
+        cin >> eventID;
+        cin.ignore();
+
+        for (size_t i = 0; i < registrations.size(); i++) {
+            if (registrations[i].eventID == eventID) {
+                results.push_back(registrations[i]);
+            }
+        }
+        break;
+    }
+    case 3: {
+        string participantID;
+        cout << "Enter Participant ID: ";
+        getline(cin, participantID);
+
+        for (size_t i = 0; i < registrations.size(); i++) {
+            if (registrations[i].participantID == participantID) {
+                results.push_back(registrations[i]);
+            }
+        }
+        break;
+    }
+    default:
+        cout << "Invalid choice!\n";
+        return;
+    }
+
+    if (results.empty()) {
+        cout << "No matching registrations found.\n";
+        return;
+    }
+
+    cout << "\n=== REGISTRATION RESULTS ===\n";
+    cout << left << setw(6) << "Reg ID" << setw(15) << "Name"
+        << setw(8) << "Part_ID" << setw(12) << "Company"
+        << setw(12) << "Phone" << setw(6) << "Evt ID"
+        << setw(25) << "Event Name" << setw(12) << "Date"
+        << "Venue\n";
+    cout << string(110, '-') << "\n";
+
+    for (const auto& reg : results) {
+        cout << left << setw(6) << reg.registrationID
+            << setw(15) << reg.participantName
+            << setw(8) << reg.participantID
+            << setw(12) << reg.companyName
+            << setw(12) << reg.phoneNumber
+            << setw(6) << reg.eventID
+            << setw(25) << reg.eventName
+            << setw(12) << reg.eventDate
+            << reg.eventVenue << "\n";
+    }
+}
+
+void updateEvent() {
+    cout << "\n=== UPDATE REGISTRATION ===\n";
+
+    string participantName;
+    cout << "Enter Your Name: ";
+    getline(cin, participantName);
+
+    // Get all registrations for this participant
+    vector<Registration> userRegs = getUserRegistrationsByName(participantName);
+
+    if (userRegs.empty()) {
+        cout << "No registrations found for name: " << participantName << "\n";
+        return;
+    }
+
+    // Display user's registrations
+    cout << "\nYour registered events:\n";
+    cout << string(80, '-') << "\n";
+    cout << left << setw(5) << "No." 
+         << setw(15) << "Reg ID"
+         << setw(25) << "Event Name"
+         << setw(15) << "Event Date"
+         << setw(20) << "Venue" << "\n";
+    cout << string(80, '-') << "\n";
+
+    for (size_t i = 0; i < userRegs.size(); i++) {
+        // Find event details
+        string eventName = "Unknown Event";
+        string eventDate = "Unknown Date";
+        string eventVenue = "Unknown Venue";
+        
+        for (const auto& event : events) {
+            if (event.eventID == userRegs[i].eventID) {
+                eventName = event.eventName;
+                eventDate = event.eventDate;
+                eventVenue = event.eventVenue;
+                break;
+            }
+        }
+
+        cout << left << setw(5) << (i + 1)
+             << setw(15) << userRegs[i].registrationID
+             << setw(25) << eventName
+             << setw(15) << eventDate
+             << setw(20) << eventVenue << "\n";
+    }
+
+    // Let user choose which registration to update
+    int choice;
+    cout << "\nSelect registration number to update (1-" << userRegs.size() << "): ";
+    cin >> choice;
+    cin.ignore();
+
+    if (choice < 1 || choice > static_cast<int>(userRegs.size())) {
+        cout << "Invalid selection! Update cancelled.\n";
+        return;
+    }
+
+    Registration selectedReg = userRegs[choice - 1];
+
+    // Find the actual registration in the main vector
+    Registration* targetReg = nullptr;
+    for (auto& reg : registrations) {
+        if (reg.registrationID == selectedReg.registrationID) {
+            targetReg = &reg;
+            break;
+        }
+    }
+
+    if (targetReg == nullptr) {
+        cout << "Registration not found!\n";
+        return;
+    }
+
+    cout << "\nCurrent registration details:\n";
+    cout << "Name: " << targetReg->participantName << "\n";
+    cout << "Participant ID: " << targetReg->participantID << "\n";
+    cout << "Company: " << targetReg->companyName << "\n";
+    cout << "Phone: " << targetReg->phoneNumber << "\n";
+    cout << "Event: " << targetReg->eventName << " (ID: " << targetReg->eventID << ")\n";
+    cout << "Date: " << targetReg->eventDate << "\n";
+    cout << "Venue: " << targetReg->eventVenue << "\n";
+
+    cout << "\nWhat would you like to update?\n";
+    cout << "1. Personal details (Name, Company, Phone)\n";
+    cout << "2. Event selection\n";
+    cout << "Enter choice: ";
+
+    int updateChoice;
+    cin >> updateChoice;
+    cin.ignore();
+
+    switch (updateChoice) {
+    case 1: {
+        cout << "Update personal details:\n";
+        
+        // Validate new name
+        string newName;
+        do {
+            cout << "New Name (current: " << targetReg->participantName << "): ";
+            getline(cin, newName);
+            if (!isValidInput(newName)) {
+                cout << "Error: Name cannot be empty!\n";
+            }
+        } while (!isValidInput(newName));
+        targetReg->participantName = newName;
+
+        // Validate new company
+        string newCompany;
+        do {
+            cout << "New Company (current: " << targetReg->companyName << "): ";
+            getline(cin, newCompany);
+            if (!isValidInput(newCompany)) {
+                cout << "Error: Company name cannot be empty!\n";
+            }
+        } while (!isValidInput(newCompany));
+        targetReg->companyName = newCompany;
+
+        cout << "New Phone (current: " << targetReg->phoneNumber << "): ";
+        string newPhone;
+        do {
+            getline(cin, newPhone);
+            if (!isValidPhoneNumber(newPhone)) {
+                cout << "Error: Phone number must be exactly 10 digits! Try again: ";
+            }
+        } while (!isValidPhoneNumber(newPhone));
+        targetReg->phoneNumber = newPhone;
+        break;
+    }
+    case 2: {
+        displayEvents();
+
+        int newEventID;
+        cout << "Select new Event ID: ";
+        cin >> newEventID;
+        cin.ignore();
+
+        if (!isValidEventID(newEventID)) {
+            cout << "Error: Invalid Event ID! Update cancelled.\n";
+            return;
+        }
+
+        if (newEventID != targetReg->eventID && isAlreadyRegistered(targetReg->participantID, newEventID)) {
+            cout << "Error: You are already registered for this event!\n";
+            return;
+        }
+
+        // Update event details
+        for (size_t i = 0; i < events.size(); i++) {
+            if (events[i].eventID == newEventID) {
+                targetReg->eventID = newEventID;
+                targetReg->eventName = events[i].eventName;
+                targetReg->eventDate = events[i].eventDate;
+                targetReg->eventVenue = events[i].eventVenue;
+                break;
+            }
+        }
+        break;
+    }
+    default:
+        cout << "Invalid choice!\n";
+        return;
+    }
+
+    saveRegistrations();
+    cout << "Registration updated successfully!\n";
+}
+
+void deleteEvent() {
+    cout << "\n=== DELETE REGISTRATION ===\n";
+
+    string participantName;
+    cout << "Enter Your Name: ";
+    getline(cin, participantName);
+
+    // Get all registrations for this participant
+    vector<Registration> userRegs = getUserRegistrationsByName(participantName);
+
+    if (userRegs.empty()) {
+        cout << "No registrations found for name: " << participantName << "\n";
+        return;
+    }
+
+    // Display user's registrations
+    cout << "\nYour registered events:\n";
+    cout << string(80, '-') << "\n";
+    cout << left << setw(5) << "No." 
+         << setw(15) << "Reg ID"
+         << setw(25) << "Event Name"
+         << setw(15) << "Event Date"
+         << setw(20) << "Venue" << "\n";
+    cout << string(80, '-') << "\n";
+
+    for (size_t i = 0; i < userRegs.size(); i++) {
+        // Find event details
+        string eventName = "Unknown Event";
+        string eventDate = "Unknown Date";
+        string eventVenue = "Unknown Venue";
+        
+        for (const auto& event : events) {
+            if (event.eventID == userRegs[i].eventID) {
+                eventName = event.eventName;
+                eventDate = event.eventDate;
+                eventVenue = event.eventVenue;
+                break;
+            }
+        }
+
+        cout << left << setw(5) << (i + 1)
+             << setw(15) << userRegs[i].registrationID
+             << setw(25) << eventName
+             << setw(15) << eventDate
+             << setw(20) << eventVenue << "\n";
+    }
+
+    // Let user choose which registration to delete
+    int choice;
+    cout << "\nSelect registration number to delete (1-" << userRegs.size() << "): ";
+    cin >> choice;
+    cin.ignore();
+
+    if (choice < 1 || choice > static_cast<int>(userRegs.size())) {
+        cout << "Invalid selection! Deletion cancelled.\n";
+        return;
+    }
+
+    Registration selectedReg = userRegs[choice - 1];
+
+    // Confirm deletion
+    char confirm;
+    cout << "\nAre you sure you want to delete registration ID " << selectedReg.registrationID << "? (y/n): ";
+    cin >> confirm;
+    cin.ignore();
+
+    if (confirm == 'y' || confirm == 'Y') {
+        // Find and remove the registration
+        vector<Registration> newRegistrations;
+        for (const auto& reg : registrations) {
+            if (reg.registrationID != selectedReg.registrationID) {
+                newRegistrations.push_back(reg);
+            }
+        }
+        registrations = newRegistrations;
+        saveRegistrations();
+        cout << "Registration deleted successfully!\n";
+    }
+    else {
+        cout << "Deletion cancelled.\n";
+    }
+}
+
+void displayMenu() {
+    // Clear screen manually to avoid extern function issues
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+    cout << "\n========================================\n";
+    cout << "        BOOK YOUR EVENT\n";
+    cout << "========================================\n";
+    cout << "1. Register for Event\n";
+    cout << "2. View My Registrations\n";
+    cout << "3. Update Registration\n";
+    cout << "4. Cancel Registration\n";
+    cout << "5. Exit\n";
+    cout << "========================================\n";
+}
+
+bool isValidEventID(int eventID) {
+    for (size_t i = 0; i < events.size(); i++) {
+        if (events[i].eventID == eventID) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isAlreadyRegistered(const string& participantID, int eventID) {
+    for (size_t i = 0; i < registrations.size(); i++) {
+        if (registrations[i].participantID == participantID && registrations[i].eventID == eventID) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isValidInput(const string& input) {
+    return !input.empty() && input.find_first_not_of(" \t\n\r") != string::npos;
+}
+
+bool isValidPhoneNumber(const string& phone) {
+    // Check if phone number is exactly 10 digits
+    if (phone.length() != 10) {
+        return false;
+    }
+    
+    // Check if all characters are digits
+    for (char c : phone) {
+        if (!isdigit(c)) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+string generateParticipantID() {
+    static int counter = 1000;
+    return "P" + to_string(counter++);
+}
+
+vector<Registration> getUserRegistrations(const string& participantID) {
+    vector<Registration> userRegs;
+    for (const auto& reg : registrations) {
+        if (reg.participantID == participantID) {
+            userRegs.push_back(reg);
+        }
+    }
+    return userRegs;
+}
+
+vector<Registration> getUserRegistrationsByName(const string& participantName) {
+    vector<Registration> userRegs;
+    for (const auto& reg : registrations) {
+        if (reg.participantName == participantName) {
+            userRegs.push_back(reg);
+        }
+    }
+    return userRegs;
+}

@@ -5,35 +5,13 @@
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
+#include "common.h"
 
 using namespace std;
-
-// Registration struct to store participant registration data
-struct Registration {
-    int registrationID;
-    string participantName;
-    string participantID;
-    string companyName;
-    string phoneNumber;
-    int eventID;
-    string eventName;
-    string eventDate;
-    string eventVenue;
-};
-
-// Event struct to store event information from event.txt
-struct Event {
-    int eventID;
-    string eventName;
-    string eventDate;
-    string eventVenue;
-    string requiredEquipment;
-};
 
 // Global vectors to store data
 vector<Registration> registrations;
 vector<Event> events;
-int nextRegistrationID = 1;
 
 // Function prototypes
 void loadEvents();
@@ -50,11 +28,11 @@ bool isAlreadyRegistered(const string& participantID, int eventID);
 bool isValidInput(const string& input);
 bool isValidPhoneNumber(const string& phone);
 string generateParticipantID();
-vector<Registration> getUserRegistrations(const string& participantID);
+string generateRegistrationID();
 vector<Registration> getUserRegistrationsByName(const string& participantName);
 
 
-int main() {
+int registrationMain() {
     loadEvents();
     loadRegistrations();
 
@@ -132,7 +110,6 @@ void loadEvents() {
 void loadRegistrations() {
     ifstream file("registrations.txt");
     registrations.clear();
-    nextRegistrationID = 1;
 
     if (!file.is_open()) {
         return; // File doesn't exist yet, that's okay
@@ -146,8 +123,7 @@ void loadRegistrations() {
         Registration reg;
         string temp;
 
-        getline(ss, temp, ',');
-        reg.registrationID = stoi(temp);
+        getline(ss, reg.registrationID, ',');
         getline(ss, reg.participantName, ',');
         getline(ss, reg.participantID, ',');
         getline(ss, reg.companyName, ',');
@@ -159,10 +135,6 @@ void loadRegistrations() {
         getline(ss, reg.eventVenue);
 
         registrations.push_back(reg);
-
-        if (reg.registrationID >= nextRegistrationID) {
-            nextRegistrationID = reg.registrationID + 1;
-        }
     }
     file.close();
 }
@@ -221,7 +193,7 @@ void registerEvent() {
     }
 
     Registration newReg;
-    newReg.registrationID = nextRegistrationID++;
+    newReg.registrationID = generateRegistrationID();
 
     // Get participant details
     cout << "\nEnter participant details:\n";
@@ -237,7 +209,7 @@ void registerEvent() {
 
     // Auto-generate participant ID
     newReg.participantID = generateParticipantID();
-    cout << "Auto-generated Participant ID: " << newReg.participantID << "\n";
+    cout << "Your Participant ID: " << newReg.participantID << "\n";
 
     // Validate company name
     do {
@@ -290,6 +262,21 @@ void registerEvent() {
     cout << "Event: " << newReg.eventName << "\n";
     cout << "Date: " << newReg.eventDate << "\n";
     cout << "Venue: " << newReg.eventVenue << "\n";
+    
+    // Offer immediate payment option
+    char payChoice;
+    cout << "\nWould you like to make payment now? (y/n): ";
+    cin >> payChoice;
+    cin.ignore();
+    
+    if (payChoice == 'y' || payChoice == 'Y') {
+        cout << "\n=== PROCEEDING TO PAYMENT ===\n";
+        // Call payment function for this registration
+        processImmediatePayment(newReg);
+    } else {
+        cout << "\nYou can make payment later through the Payment System menu.\n";
+        cout << "Remember your Registration ID: " << newReg.registrationID << "\n";
+    }
 }
 
 void searchEvent() {
@@ -682,15 +669,11 @@ string generateParticipantID() {
     return "P" + to_string(counter++);
 }
 
-vector<Registration> getUserRegistrations(const string& participantID) {
-    vector<Registration> userRegs;
-    for (const auto& reg : registrations) {
-        if (reg.participantID == participantID) {
-            userRegs.push_back(reg);
-        }
-    }
-    return userRegs;
+string generateRegistrationID() {
+    static int counter = 1000;
+    return "R" + to_string(counter++);
 }
+
 
 vector<Registration> getUserRegistrationsByName(const string& participantName) {
     vector<Registration> userRegs;

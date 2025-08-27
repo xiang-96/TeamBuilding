@@ -11,36 +11,6 @@ This document explains how to integrate the Payment and Registration modules wit
 5. `registrations.txt` - Stores registration records
 6. `payments.txt` - Stores payment records
 
-## Data Structures
-### Registration
-```cpp
-struct Registration {
-    string registrationID;
-    string participantName;
-    string participantID;
-    string companyName;
-    string phoneNumber;
-    int eventID;
-    string eventName;
-    string eventDate;
-    string eventVenue;
-};
-```
-
-### Event
-```cpp
-struct Event {
-    int eventID;
-    string eventName;
-    string eventDate;
-    string eventVenue;
-    string requiredEquipment;
-    double pricePerHour;
-    int durationHours;
-    double totalPrice;
-};
-```
-
 ## How to Use
 
 ### 1. Initialization

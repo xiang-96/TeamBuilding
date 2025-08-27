@@ -85,13 +85,12 @@ void retrieveEvent() {
             cout << "Name: " << e.name << "\n";
             cout << "Date: " << e.date << "\n";
             cout << "Venue: " << e.venue << "\n";
-            // Display equipment in comma-separated format
             if (!e.equipment.empty()) {
                 cout << "Equipment: ";
                 for (size_t i = 0; i < e.equipment.size(); i++) {
                     cout << e.equipment[i];
                     if (i != e.equipment.size() - 1) {
-                        cout << ", "; // add comma between equipment
+                        cout << ", ";
                     }
                 }
                 cout << endl;

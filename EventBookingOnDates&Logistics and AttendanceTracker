@@ -1,30 +1,345 @@
 #include <iostream>
 #include <string>
-#include<vector>
+#include <vector>
+#include <iomanip>
+#include <limits>
+#include <regex>
 
 using namespace std;
 
-int main(){
-
-struct EventDetails{
-  string name;
-  string date;
-  string venue;
-  vector<string> equipment;
-  vector<vector><string> attendanceMatrix;
+struct Event {
+    int eventID;
+    string name;
+    string date; 
+    string venue;
+    vector<string> equipment;
 };
 
-struct Participant{
-  int participantID;
-  string name;
-  int eventID;
-  bool attendanceMarked;
-  bool present;
+struct Participant {
+    int participantID;
+    string name;
+    int eventID;
+    string status; // Absent/Present
 };
 
-struct AttendanceRecord{
-  Participant participant;
-  string status;
-};
+vector<Event> events;
+vector<Participant> participants;
+int nextEventID = 1;
+int nextParticipantID = 1;
 
+bool isValidDate(const string& date) {
+    regex pattern(R"(\d{4}-\d{2}-\d{2})");
+    return regex_match(date, pattern);
+}
+
+string getValidDate() {
+    string date;
+    while (true) {
+        cout << "Enter date (YYYY-MM-DD): ";
+        getline(cin, date);
+        if (isValidDate(date)) return date;
+        cout << "Invalid format! Please use YYYY-MM-DD.\n";
+    }
+}
+
+// Event Booking 
+void createEvent() {
+    Event e;
+    e.eventID = nextEventID++;
+    cout << "(Event ID : " << e.eventID << ")\n";
+
+    cout << "Enter event name: ";
+    getline(cin, e.name);
+
+    e.date = getValidDate();
+
+    cout << "Enter venue: ";
+    getline(cin, e.venue);
+
+    int eqCount;
+    cout << "Enter number of required equipment (0 if none): ";
+    cin >> eqCount;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    for (int i = 0; i < eqCount; i++) {
+        string eq;
+        cout << "  Equipment " << i + 1 << ": ";
+        getline(cin, eq);
+        e.equipment.push_back(eq);
+    }
+
+    events.push_back(e);
+    cout << "Event created successfully!\n";
+}
+
+void retrieveEvent() {
+    int id;
+    cout << "Enter Event ID to retrieve: ";
+    cin >> id;
+    cin.ignore();
+
+    for (auto& e : events) {
+        if (e.eventID == id) {
+            cout << "\n========== Event Details ==========\n";
+            cout << "ID: " << e.eventID << "\n";
+            cout << "Name: " << e.name << "\n";
+            cout << "Date: " << e.date << "\n";
+            cout << "Venue: " << e.venue << "\n";
+            // Display equipment in comma-separated format
+            if (!e.equipment.empty()) {
+                cout << "Equipment: ";
+                for (size_t i = 0; i < e.equipment.size(); i++) {
+                    cout << e.equipment[i];
+                    if (i != e.equipment.size() - 1) {
+                        cout << ", "; // add comma between equipment
+                    }
+                }
+                cout << endl;
+            }
+            else {
+                cout << "Equipment: None" << endl;
+            }
+
+            return;
+        }
+    }
+    cout << "Event not found!\n";
+}
+
+void updateEvent() {
+    int id;
+    cout << "Enter Event ID to update: ";
+    cin >> id;
+    cin.ignore();
+
+    for (auto& e : events) {
+        if (e.eventID == id) {
+            string input;
+
+            cout << "Enter new name (press Enter to skip): ";
+            getline(cin, input);
+            if (!input.empty()) e.name = input;
+
+            cout << "Enter new date (YYYY-MM-DD, press Enter to skip): ";
+            getline(cin, input);
+            if (!input.empty()) {
+                while (!isValidDate(input)) {
+                    cout << "Invalid format! Please use YYYY-MM-DD.\n";
+                    cout << "Enter new date again (or press Enter to skip): ";
+                    getline(cin, input);
+                    if (input.empty()) break;
+                }
+                if (!input.empty()) e.date = input;
+            }
+
+            cout << "Enter new venue (press Enter to skip): ";
+            getline(cin, input);
+            if (!input.empty()) e.venue = input;
+
+            cout << "Update equipment? (y/n): ";
+            getline(cin, input);
+            if (input == "y" || input == "Y") {
+                e.equipment.clear();
+                int eqCount;
+                cout << "Enter number of required equipment (0 if none): ";
+                cin >> eqCount;
+                cin.ignore();
+                for (int i = 0; i < eqCount; i++) {
+                    string eq;
+                    cout << "  Equipment " << i + 1 << ": ";
+                    getline(cin, eq);
+                    e.equipment.push_back(eq);
+                }
+            }
+
+            cout << "Event updated successfully!\n";
+            return;
+        }
+    }
+    cout << "Event not found!\n";
+}
+
+void deleteEvent() {
+    int id;
+    cout << "Enter Event ID to delete: ";
+    cin >> id;
+    cin.ignore();
+
+    for (auto it = events.begin(); it != events.end(); ++it) {
+        if (it -> eventID == id) {
+            events.erase(it);
+            cout << "Event deleted successfully!\n";
+            return;
+        }
+    }
+    cout << "Event not found!\n";
+}
+
+void viewAllEvents() {
+    cout << "\n========== All Events ==========\n";
+    for (auto& e : events) {
+        cout << "ID: " << e.eventID << "\n";
+        cout << "Name: " << e.name << "\n";
+        cout << "Date: " << e.date << "\n";
+        cout << "Venue: " << e.venue << "\n";
+        cout << "Equipment: ";
+        if (e.equipment.empty()) {
+            cout << "None";
+        }
+        else {
+            for (auto& eq : e.equipment) cout << eq << ", ";
+        }
+
+        cout << endl;
+    }
+}
+
+// Attendance Tracker
+void addParticipant() {
+    Participant p;
+    p.participantID = nextParticipantID++;
+
+    cout << "Enter participant name: ";
+    getline(cin, p.name);
+
+    cout << "Enter Event ID to register: ";
+    cin >> p.eventID;
+    cin.ignore();
+
+    bool found = false;
+    for (auto& e : events) {
+        if (e.eventID == p.eventID) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        cout << "Event not found! Participant not added.\n";
+        return;
+    }
+
+    p.status = "Absent";
+    participants.push_back(p);
+    cout << "Participant added successfully!\n";
+    cout << "(Participant ID : " << p.participantID << ")\n";
+}
+
+void markAttendance() {
+    int pid, eid;
+    cout << "Enter Participant ID: ";
+    cin >> pid;
+    cout << "Enter Event ID: ";
+    cin >> eid;
+    cin.ignore();
+
+    bool eventFound = false, participantFound = false;
+
+    for (auto& e : events) {
+        if (e.eventID == eid) {
+            eventFound = true;
+            break;
+        }
+    }
+    for (auto& p : participants) {
+        if (p.participantID == pid) {
+            participantFound = true;
+            if (p.eventID == eid) {
+                p.status = "Present";
+                cout << "Attendance marked as Present!\n";
+                return;
+            }
+            else {
+                cout << "Participant not registered for this event!\n";
+                return;
+            }
+        }
+    }
+    if (!eventFound) cout << "Event not found!\n";
+    if (!participantFound) cout << "Participant not found!\n";
+}
+
+void viewAttendanceByEvent() {
+    int eid;
+    cout << "Enter Event ID to view attendance: ";
+    cin >> eid;
+    cin.ignore();
+
+    cout << "\n========== Attendance for Event " << eid << " ==========\n";
+    for (auto& p : participants) {
+        if (p.eventID == eid) {
+            cout << "Participant ID: " << p.participantID << "\n";
+            cout << "Name: " << p.name << "\n";
+            cout << "Status: " << p.status << "\n\n\n";
+        }
+    }
+    cout << "=============================================\n";
+}
+
+void viewAllParticipants() {
+    cout << "\n========== All Participants ==========\n";
+    for (auto& p : participants) {
+        cout << "ID: " << p.participantID << "\n";
+        cout << "Name: " << p.name << "\n";
+        cout << "Event ID: " << p.eventID << "\n";
+        cout << "Status: " << p.status << "\n\n";
+    }
+    cout << "======================================\n";
+}
+
+// Menu 
+void eventBookingMenu() {
+    int choice;
+    do {
+        cout << "\n========== Event Booking Menu ==========\n";
+        cout << "1. Create Event\n2. Retrieve Event\n3. Update Event\n4. Delete Event\n5. View All Events\n0. Back\nChoice: ";
+        cin >> choice;
+        cin.ignore();
+
+        switch (choice) {
+        case 1: createEvent(); break;
+        case 2: retrieveEvent(); break;
+        case 3: updateEvent(); break;
+        case 4: deleteEvent(); break;
+        case 5: viewAllEvents(); break;
+        case 0: break;
+        default: cout << "Invalid choice!\n";
+        }
+    } while (choice != 0);
+}
+
+void attendanceTrackerMenu() {
+    int choice;
+    do {
+        cout << "\n========== Attendance Tracker Menu ==========\n";
+        cout << "1. Add Participant\n2. Mark Attendance\n3. View Attendance by Event\n4. View All Participants\n0. Back\nChoice: ";
+        cin >> choice;
+        cin.ignore();
+
+        switch (choice) {
+        case 1: addParticipant(); break;
+        case 2: markAttendance(); break;
+        case 3: viewAttendanceByEvent(); break;
+        case 4: viewAllParticipants(); break;
+        case 0: break;
+        default: cout << "Invalid choice!\n";
+        }
+    } while (choice != 0);
+}
+
+int main() {
+    int choice;
+    do {
+        cout << "\n========== Main Menu ==========\n";
+        cout << "1. Event Booking on Dates & Logistics\n2. Attendance Tracker\n0. Exit\nChoice: ";
+        cin >> choice;
+        cin.ignore();
+
+        switch (choice) {
+        case 1: eventBookingMenu(); break;
+        case 2: attendanceTrackerMenu(); break;
+        case 0: cout << "Existing...\n"; break;
+        default: cout << "Invalid choice!\n";
+        }
+    } while (choice != 0);
+    return 0;
 }

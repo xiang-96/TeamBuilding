@@ -1,0 +1,104 @@
+# Payment and Registration Module Integration Guide
+
+## Overview
+This document explains how to integrate the Payment and Registration modules with other parts of the system.
+
+## Files Included
+1. `Payment.cpp` - Contains payment processing logic
+2. `Registration.cpp` - Handles participant registration
+3. `common.h` - Shared data structures and function declarations
+4. `events.txt` - Stores event details (including pricing)
+5. `registrations.txt` - Stores registration records
+6. `payments.txt` - Stores payment records
+
+## Data Structures
+### Registration
+```cpp
+struct Registration {
+    string registrationID;
+    string participantName;
+    string participantID;
+    string companyName;
+    string phoneNumber;
+    int eventID;
+    string eventName;
+    string eventDate;
+    string eventVenue;
+};
+```
+
+### Event
+```cpp
+struct Event {
+    int eventID;
+    string eventName;
+    string eventDate;
+    string eventVenue;
+    string requiredEquipment;
+    double pricePerHour;
+    int durationHours;
+    double totalPrice;
+};
+```
+
+## How to Use
+
+### 1. Initialization
+Include the necessary header:
+```cpp
+#include "common.h"
+```
+
+### 2. Making a Payment
+```cpp
+// Create an instance of the payment system
+IntegratedPaymentSystem paymentSystem;
+
+// For immediate payment after registration
+processImmediatePayment(registration);
+
+// Or use the payment system directly
+paymentSystem.displayUserRegistrations("Participant Name");
+Registration reg = paymentSystem.selectRegistrationForPayment("Participant Name");
+Event event = getEventByID(reg.eventID, loadEventsFromFile());
+paymentSystem.processPayment(reg, event, 1); // 1 for credit card, 2 for e-wallet
+```
+
+### 3. Checking Payment Status
+```cpp
+bool isPaid = paymentSystem.isRegistrationPaid("REG123");
+bool hasUnpaid = paymentSystem.hasUnpaidRegistrations("Participant Name");
+```
+
+## File Formats
+
+### events.txt
+```
+eventID,eventName,eventDate,pricePerHour,eventVenue,totalPrice,requiredEquipment,durationHours
+1,Workshop 1,2023-12-15,50.00,Hall A,200.00,Projector,4
+```
+
+### registrations.txt
+```
+registrationID,participantName,participantID,companyName,phoneNumber,eventID,eventName,eventDate,eventVenue
+```
+
+### payments.txt
+```
+paymentID,registrationID,paymentMethod,amount,paymentDate,receiptID,eventName,participantName,participantID,cardNumber,walletID,eventDate,eventVenue
+```
+
+## Dependencies
+- C++11 or higher
+- Standard Library
+
+## Notes
+- All monetary values are in RM (Malaysian Ringgit)
+- Dates are in YYYY-MM-DD format
+- Make sure to handle file read/write permissions properly
+- The system maintains data consistency through text files
+
+## Integration Points
+1. Call `processImmediatePayment(registration)` right after a successful registration
+2. Use `paymentSystem.displayPaymentHistory(participantName)` to show payment history
+3. Check `paymentSystem.hasUnpaidRegistrations(participantName)` before allowing event participation

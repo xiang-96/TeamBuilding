@@ -1,0 +1,56 @@
+#ifndef COMMON_H
+#define COMMON_H
+
+#include <string>
+#include <vector>
+
+using namespace std;
+
+// Registration struct to store participant registration data
+struct Registration {
+    string registrationID;
+    string participantName;
+    string participantID;
+    string companyName;
+    string phoneNumber;
+    int eventID;
+    string eventName;
+    string eventDate;
+    string eventVenue;
+};
+
+// Enhanced Event struct with pricing information
+struct Event {
+    int eventID;
+    string eventName;
+    string eventDate;
+    string eventVenue;
+    string requiredEquipment;
+    double pricePerHour;
+    int durationHours;
+    double totalPrice;
+};
+
+// Payment struct to store payment records
+struct Payment {
+    int userID = 0;
+    string registrationID = "";  // Link to registration instead of bookingID
+    string paymentMethod = "";
+    double paymentAmount = 0.0;
+    string paymentDate = "";
+    string receiptID = "";
+    string eventName = "";
+    string participantName = "";
+    string participantID = "";
+    string cardNumber = "";      // For credit/debit card (masked)
+    string walletID = "";        // For TnG e-wallet
+    string eventDate = "";
+    string eventVenue = "";
+};
+
+// Function declarations
+int registrationMain();
+int paymentMain();
+void processImmediatePayment(const Registration& registration);
+
+#endif

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <ctime>
 #include <iomanip>
 #include <cctype>
@@ -29,15 +30,23 @@ struct User {
     vector<string> interests;
 };
 
+struct UserRating {
+    string userId;
+    int score;
+    string comment;
+};
+
 struct Event {
     string eventId;
     string eventName;
     string eventDate;
     string eventLocation;
     string eventDescription;
+    string requiredEquipment;
     int maxParticipants;
     double originalPrice;
     double discount;
+    double discountedPrice;
     bool isFeatured;
     bool isTopPick;
     bool isUpcoming;
@@ -52,68 +61,72 @@ struct Feedback {
     string date;
 };
 
-struct UserRating {
-    string userId;
-    int score;
-    string comment;
-};
-
 struct SystemData {
     vector<User> users;
     vector<Event> events;
 };
 
+void displayHeader(const string &title);
 void displayMainMenu(SystemData &data);
 void login(SystemData &data);
 void signUp(SystemData &data);
 void forgotPassword(SystemData& data);
 void checkRememberedUser(SystemData& data);
 void saveRememberedUser(const string& userId);
+void clearRememberedUser();
 string getRememberedUser();
 void userDashboard(SystemData &data, const string &userId);
 void displayEvents(const SystemData &data, bool showFeatured = false, bool showDiscounted = false, bool showTopRated = false);
 void registerForEvent(SystemData &data, const string &userId);
 void provideFeedback(SystemData &data, const string &userId);
+void saveFeedback(const string& userId, const string& feedback, int rating);
 void saveUserData(const SystemData &data);
 void loadUserData(SystemData &data);
 void saveEventData(const SystemData &data);
-void loadEventData(SystemData &data);
-bool validatePhone(const string &phone);
+void loadEventData(SystemData& data);
+void loadDiscountedEvents(SystemData& data);
+bool validatePhoneNum(const string &phone);
 bool validatePassword(const string &password);
 bool validateDate(const string &date);
 string getCurrentDate();
 void clearScreen();
-void displayHeader(const string &title);
 
 int main() {
     SystemData systemData;
     loadUserData(systemData);
     loadEventData(systemData);
     loadDiscountedEvents(systemData);
-
+    checkRememberedUser(systemData);
     displayMainMenu(systemData);
     return 0;
 }
 
-void displayMainMenu(SystemData &data) {
+void displayHeader(const string& title) {
+    cout << "\n _____                    ____                   _ " << endl;
+    cout << "|_   _|__  __ _ _ __ ___ / ___| _ __   __ _ _ __| | __" << endl;
+    cout << "  | |/ _ \\/ _` | '_ ` _ \\___ \\| '_ \\ / _` | '__| |/ /" << endl;
+    cout << "  | |  __/ (_| | | | | | |___) | |_) | (_| | |  |   < " << endl;
+    cout << "  |_|\\___|\\__,_|_| |_| |_|____/| .__/ \\__,_|_|  |_|\\_\\" << endl;
+    cout << "                               |_|                    \n" << endl;
+    cout << string(40, '=') << endl;
+    cout << setw(20 + title.length() / 2) << title << endl;
+    cout << string(40, '=') << endl;
+}
+
+void displayMainMenu(SystemData& data) {
     int choice;
     
     do {
         clearScreen();
-        cout << "\n _____                    ____                   _ " << endl;
-        cout << "|_   _|__  __ _ _ __ ___ / ___| _ __   __ _ _ __| | __" << endl;
-        cout << "  | |/ _ \/ _` | '_ ` _ \\___ \| '_ \ / _` | '__| |/ /" << endl;
-        cout << "  | |  __/ (_| | | | | | |___) | |_) | (_| | |  |   < " << endl;
-        cout << "  |_|\___|\__,_|_| |_| |_|____/| .__/ \__,_|_|  |_|\_\\" << endl;
-        cout << "                               |_|                    \n" << endl;
-        displayHeader("\n==== Team Building Event System ====\n");
-        cout << "1. Login";
+        displayHeader("\t\tTeam Building Event System");
+        cout << "\t\tTeam Building Event System";
+        cout << "\n1. Login";
         cout << "\n2. Sign Up";
         cout << "\n3. View Featured Events";
         cout << "\n4. View Discounted Events";
         cout << "\n5. View Top Rated";
         cout << "\n6. Exit";
-        cout << string(40, "-") << endl;
+        cout << string(40, '=') << endl;
         cout << "\nEnter your choice (1-6): ";
         cin >> choice;
 
@@ -144,23 +157,13 @@ void displayMainMenu(SystemData &data) {
     } while (choice != 6);
 }
 
-void login(SystemData &data) {
+void login(SystemData& data) {
     clearScreen();
-    displayHeader("\n==== Login ====\n");
-    string rememberedUserId = getRememberedUser();
-    if (!rememberedUserId.empty()) {
-        for (const auto &user : data.users) {
-            if (user.userId == rememberedUserId && user.rememberMe) {
-                cout << "Welcome back, " << user.userName << "!\n";
-                cout << "Logging you in automatically...\n";
-                system("pause");
-                userDashboard(data, user.userId);
-                return;
-            }
-        }
-    }
+    displayHeader("Team Building Event System");
+    cout << "\t\tLogin";
+
     string phoneNum, password;
-    cout << "Enter Phone Number (" << PHONE_NUM_LENGTH << " digits): ";
+    cout << "\nEnter Phone Number (" << PHONE_NUM_LENGTH << " digits): ";
     cin >> phoneNum;
 
     while (!validatePhoneNum(phoneNum)) {
@@ -172,10 +175,12 @@ void login(SystemData &data) {
     cin >> password;
 
     string userId;
+    string userName;
     bool found = false;
-    for (const auto &user : data.users) {
+    for (const auto& user : data.users) {
         if (user.phoneNum == phoneNum && user.password == password) {
             userId = user.userId;
+            userName = user.userName;
             found = true;
 
             // Remember me functionality
@@ -183,7 +188,7 @@ void login(SystemData &data) {
             cout << "Remember me? (y/n): ";
             cin >> remember;
             if (tolower(remember) == 'y') {
-                for (auto &u : data.users) {
+                for (auto& u : data.users) {
                     if (u.userId == userId) {
                         u.rememberMe = true;
                         saveRememberedUser(userId);
@@ -196,7 +201,7 @@ void login(SystemData &data) {
     }
 
     if (found) {
-        cout << "Login successful! Welcome, " << data.userName << "!" << endl;
+        cout << "Login successful! Welcome, " << userName << "!" << endl;
         system("pause");
         userDashboard(data, userId);
     }
@@ -228,7 +233,8 @@ void login(SystemData &data) {
 void signUp(SystemData &data) {
     clearScreen();
     User newUser;
-    displayHeader("\n==== Sign Up ====");
+    displayHeader("Team Building Event System");
+    cout << "\t\tSign Up ====";
 
     cout << "\nEnter User ID: ";
     cin >> newUser.userId;
@@ -241,26 +247,26 @@ void signUp(SystemData &data) {
     getline(cin, newUser.companyName);
 
     bool phoneExists;
-    do {
-        phoneExists = false;
-        cout << "Enter Phone Number (" << PHONE_NUM_LENGTH << " digits): ";
-        cin >> newUser.phoneNum;
+do {
+    phoneExists = false;
+    cout << "Enter Phone Number (" << PHONE_NUM_LENGTH << " digits): ";
+    cin >> newUser.phoneNum;
 
-        if (!validatePhone(newUser.phoneNum)) {
-            cout << "Invalid phone number format.\n";
+    if (!validatePhoneNum(newUser.phoneNum)) {
+        cout << "Invalid phone number format.\n";
+        phoneExists = true;
+        continue;
+    }
+
+    for (const auto& user : data.users) {
+        if (user.phoneNum == newUser.phoneNum) {
             phoneExists = true;
-            continue;
+            cout << "This phone number is already registered. Please try again: ";
+            phoneExists = true;
+            break;
         }
-
-        for (const auto &user : data.users) {
-            if (user.phoneNum == newUser.phoneNum) {
-                phoneExists = true;
-                cout << "This phone number is already registered. Please try again: ";
-                phoneExists = true;
-                break;
-            }
-        }
-    } while (phoneExists);
+    }
+} while (phoneExists);
 
     do {
         cout << "Enter Password (min " << MIN_PASSWORD_LENGTH << " chars): ";
@@ -276,9 +282,10 @@ void signUp(SystemData &data) {
 
 void forgotPassword(SystemData &data) {
     clearScreen();
-    displayHeader("\n==== Reset Password ====\n");
+    displayHeader("Team Building Event System");
+    cout << "\t\tReset Password";
     string phoneNum, newPassword;
-    cout << "Enter your registered phone number: ";
+    cout << "\nEnter your registered phone number: ";
     cin >> phoneNum;
 
     while (!validatePhoneNum(phoneNum)) {
@@ -326,12 +333,55 @@ void forgotPassword(SystemData &data) {
     cin.get();
 }
 
+void checkRememberedUser(SystemData& data) {
+    string rememberedUserId = getRememberedUser();
+
+    if (!rememberedUserId.empty()) {
+        User* rememberedUser = nullptr;
+        for (auto& user : data.users) {
+            if (user.userId == rememberedUserId && user.rememberMe) {
+                rememberedUser = &user;
+                break;
+            }
+        }
+
+        if (rememberedUser != nullptr) {
+            cout << "\nWelcome back, " << rememberedUser->userName << "!" << endl;
+            cout << "Would you like to login automatically? (y/n): ";
+
+            char choice;
+            cin >> choice;
+
+            if (tolower(choice) == 'y') {
+                cout << "Logging you in automatically..." << endl;
+                system("pause");
+                userDashboard(data, rememberedUser->userId);
+            }
+            else {
+                cout << "Returning to main menu..." << endl;
+                clearRememberedUser();
+                system("pause");
+            }
+        }
+        else {
+            cout << "Remembered user not found or 'Remember me' was not enabled." << endl;
+            clearRememberedUser();
+            system("pause");
+        }
+    }
+}
+
 void saveRememberedUser(const string& userId) {
     ofstream outFile("remembered_user.txt");
     if (outFile.is_open()) {
         outFile << userId;
         outFile.close();
     }
+}
+
+void clearRememberedUser() {
+    ofstream outFile("remembered_user.txt");
+    outFile.close();
 }
 
 string getRememberedUser() {
@@ -344,16 +394,12 @@ string getRememberedUser() {
     return userId;
 }
 
-void clearRememberedUser() {
-    ofstream outFile("remembered_user.txt");
-    outFile.close();
-}
-
 void userDashboard(SystemData &data, const string &userId) {
     int choice;
     do {
         clearScreen();
-        displayHeader("\n==== User Dashboard ====");
+        displayHeader("Team Building Event System");
+        cout << "\t\tUser Dashboard";
 
         // Find current user
         const User* currentUser = nullptr;
@@ -399,7 +445,7 @@ void userDashboard(SystemData &data, const string &userId) {
         default:
             cout << "Invalid choice! Please try again: " << endl;
         }
-    } while (choice != 2);
+    } while (choice != 5);
 }
 
 //void organizerDashboard(vector<Event>& events, vector<User>& users) {
@@ -438,16 +484,20 @@ void displayEvents(const SystemData& data, bool showFeatured, bool showDiscounte
     clearScreen();
 
     if (showFeatured) {
-        displayHeader("\n=== Featured Events ===\n");
+        displayHeader("Team Building Event System");
+        cout << "\t\tFeatured Events\n";
     }
     else if (showDiscounted) {
-        displayHeader("\n=== Discounted Events ===\n");
+        displayHeader("Team Building Event System");
+        cout << "\t\t Discounted Events\n";
     }
     else if (showTopRated) {
-        displayHeader("\n=== Top Rated Events ===\n");
+        displayHeader("Team Building Event System");
+        cout << "\t\tTop Rated Events\n";
     }
     else {
-        displayHeader("\n=== All Events ===\n");
+        displayHeader("Team Building Event System");
+        cout << "\t\tAll Events\n";
     }
 
     vector<Event> filteredEvents;
@@ -474,7 +524,7 @@ void displayEvents(const SystemData& data, bool showFeatured, bool showDiscounte
 
         // Sort by rating (high to low)
         sort(ratedEvents.begin(), ratedEvents.end(), [](const pair<Event, double>& a, const pair<Event, double>& b) {
-            return a.second, b.second;
+            return a.second > b.second;
             });
 
         // Display top rated events
@@ -487,7 +537,7 @@ void displayEvents(const SystemData& data, bool showFeatured, bool showDiscounte
                 if (event.discount > 0) {
                     cout << " (Save RM" << event.discount << ")";
                 }
-                cout << "\nRating: " << fixed << setprecision(1) << rating << "5.0\n";
+                cout << "\nRating: " << fixed << setprecision(1) << rating << "/5.0\n";
                 cout << string(40, '-') << endl;
             }
         }
@@ -522,28 +572,11 @@ void displayEvents(const SystemData& data, bool showFeatured, bool showDiscounte
     cin.get();
 }
 
-void loadDiscountedEvents() {
-    ifstream discountFile(DISCOUNT_FILE);
-    if (discountFile.is_open()) {
-        string line;
-        while (getline(discountFile, line)) {
-            size_t pos = line.find("|");
-            string eventId = line.substr(0, pos);
-            double discount = stod(line.substr(pos + 1));
+void registerForEvent(SystemData &data, const string &userId) {
 
-            // Update events with discounts
-            for (auto &event : events) {
-                if (event.eventId == eventId) {
-                    event.discountedPrice = event.originalPrice - discount;
-                    break;
-                }
-            }
-        }
-        discountFile.close();
-    }
 }
 
-void provideFeedback(User& currentUser, vector<Event>& events, vector<User>& users) {
+void provideFeedback(SystemData& data, const string& userId) {
     cin.ignore();
     string feedback;
     int rating;
@@ -556,113 +589,110 @@ void provideFeedback(User& currentUser, vector<Event>& events, vector<User>& use
         cout << "Invalid rating! Please try again: ";
         cin >> rating;
     }
-    saveFeedback(currentUser.userId, feedback, rating);
+    saveFeedback(userId, feedback, rating);
     cout << "Thank you for your feedback!\n" << endl;
     system("pause");
 }
 
-void saveUserData(const SystemData &data) {
-    ofstream outFile(USER_FILE);
-    if (outFile.is_open()) {
-        for (const auto& user : data.users) {
-            outFile << user.userId << "|" << user.userName << "|" << user.phoneNum << "|" << user.companyName << "|" << user.password << "|" << user.rememberMe << "\n";
-            
-            // Save registered events
-            for (const auto &eventId : user.registeredEvents) {
-                outFile << eventId << ",";
-            }
-            outFile << "|";
-
-            // Save interests
-            for (const auto &interest : user.interests) {
-                outFile << interest << ",";
-            }
-            outFile << "\n";
-        }
-        outFile.close();
-    }
-    else {
-        cerr << "Error saving user data!" << endl;
-    }
-}
-
-void loadUserData(SystemData &data) {
-    ifstream inFile(USER_FILE);
-    if (inFile.is_open()) {
-        data.users.clear();
-        string line;
-        while (getline(inFile, line)) {
-            User user;
-            size_t pos = 0;
-            string token;
-            const string delimiter = "|";
-
-            // User ID
-            pos = line.find(delimiter);
-            user.userId = line.substr(0, pos);
-            line.erase(0, pos + delimiter.length());
-
-            // User Name
-            pos = line.find(delimiter);
-            user.userName = line.substr(0, pos);
-            line.erase(0, pos + delimiter.length());
-
-            // Company Name
-            pos = line.find(delimiter);
-            user.companyName = line.substr(0, pos);
-            line.erase(0, pos + delimiter.length());
-
-            // Phone Number
-            pos = line.find(delimiter);
-            user.phoneNum = line.substr(0, pos);
-            line.erase(0, pos + delimiter.length());
-
-            // Password
-            pos = line.find(delimiter);
-            user.password = line.substr(0, pos);
-            line.erase(0, pos + delimiter.length());
-
-            // Remember Me
-            user.rememberMe = (line == "1");
-
-            // Registered Events
-            pos = line.find(delimiter);
-            token = line.substr(0, pos);
-            size_t subPos = 0;
-            while ((subPos = token.find(",")) != string::npos) {
-                string eventId = token.substr(0, subPos);
-                if (!eventId.empty()) {
-                    user.registeredEvents.push_back(eventId);
-                }
-                token.erase(0, subPos + 1);
-            }
-            line.erase(0, pos + delimiter.length());
-
-            // Interests
-            pos = line.find(delimiter);
-            token = line.substr(0, pos);
-            subPos = 0;
-            while ((subPos = token.find(",")) != string::npos) {
-                string interest = token.substr(0, subPos);
-                if (!interest.empty()) {
-                    user.interests.push_back(interest);
-                }
-                token.erase(0, subPos + 1);
-            }
-            data.users.push_back(user);
-        }
-        inFile.close();
-    }
-}
-
-void saveFeedback(const string& userId, const string& feedback) {
+void saveFeedback(const string& userId, const string& feedback, int rating) {
     ofstream outFile(FEEDBACK_FILE, ios::app);
     if (outFile.is_open()) {
-        outFile << userId << "|" << feedback << "\n";
+        outFile << userId << "|" << feedback << "|" << rating << "\n";
         outFile.close();
     }
     else {
         cerr << "Error saving feedback!" << endl;
+    }
+}
+
+void saveUserData(const SystemData& data) {
+    ofstream outFile(USER_FILE);
+    if (!outFile.is_open()) {
+        cerr << "Error saving user data!\n";
+        return;
+    }
+
+    for (const auto& user : data.users) {
+        outFile << user.userId << "|" << user.userName << "|" << user.phoneNum << "|" << user.companyName << "|" << user.password << "|" << (user.rememberMe ? "1" : "0") << "|";
+            
+        // Save registered events
+        for (const auto &eventId : user.registeredEvents) outFile << eventId << ",";
+        outFile << "|";
+
+        // Save interests
+        for (const auto& interest : user.interests) outFile << interest << ",";
+        outFile << "\n";
+    }
+    outFile.close();
+}
+
+void loadUserData(SystemData& data) {
+    ifstream inFile(USER_FILE);
+    if (!inFile.is_open()) return;
+
+    data.users.clear();
+    string line;
+    while (getline(inFile, line)) {
+        if (line.empty()) continue;
+
+        User user;
+        stringstream ss(line);
+        string token;
+
+        getline(ss, user.userId, '|');
+        getline(ss, user.userName, '|');
+        getline(ss, user.phoneNum, '|');
+        getline(ss, user.companyName, '|');
+        getline(ss, user.password, '|');
+        getline(ss, token, '|'); // rememberMe
+        user.rememberMe = (token == "1");
+        
+        // Registered events
+        getline(ss, token, '|'); 
+        stringstream evs(token);
+        while (getline(evs, token, ',')) {
+            if (!token.empty()) user.registeredEvents.push_back(token);
+        }
+
+        // Interests
+        if (getline(ss, token, '|')) {
+            stringstream ints(token);
+            while (getline(ints, token, ',')) {
+                if (!token.empty()) user.interests.push_back(token);
+            }
+        }
+        data.users.push_back(user);
+    }
+    inFile.close();
+}
+
+void saveEventData(const SystemData& data) {
+
+}
+
+void loadEventData(SystemData& data) {
+
+}
+
+void loadDiscountedEvents(SystemData& data) {
+    ifstream discountFile(DISCOUNT_FILE);
+    if (discountFile.is_open()) {
+        string line;
+        while (getline(discountFile, line)) {
+            size_t pos = line.find("|");
+            string eventId = line.substr(0, pos);
+            double discount = stod(line.substr(pos + 1));
+
+            // Update events with discounts
+            for (auto& event : data.events) {
+                if (event.eventId == eventId) {
+                    event.discount = discount;
+                    event.discountedPrice = event.originalPrice - discount;
+                    break;
+                }
+            }
+        }
+        discountFile.close();
     }
 }
 
@@ -674,7 +704,7 @@ bool validatePassword(const string &password) {
     return password.length() >= MIN_PASSWORD_LENGTH;
 }
 
-bool validateDate(const string &date) {
+bool validateDate(const string& date) {
     if (date.length() != 10) return false;
     if (date[2] != '/' || date[5] != '/') return false;
 
@@ -682,15 +712,22 @@ bool validateDate(const string &date) {
     string month = date.substr(3, 2);
     string year = date.substr(6, 4);
 
-    return all_of(day.begin(), day.end(), ::isdigit) && all_of(date.begin(), date.end(), ::isdigit) && all_of(year.begin(), year.end(), ::isdigit);
+    return all_of(day.begin(), day.end(), ::isdigit) && all_of(month.begin(), month.end(), ::isdigit) && all_of(year.begin(), year.end(), ::isdigit);
+}
+
+string getCurrentDate() {
+    time_t now = time(0);
+    tm ltm;
+    localtime_s(&ltm, &now);
+    stringstream ss;
+    ss << setw(2) << setfill('0') << ltm.tm_mday << "/" << setw(2) << setfill('0') << (1 + ltm.tm_mon) << "/" << (1900 + ltm.tm_year);
+    return ss.str();
 }
 
 void clearScreen() {
-    system("cls || clear");
-}
-
-void displayHeader(const string &title) {
-    cout << string(40, '=') << endl;
-    cout << setw(20 + title.length() / 2) << title << endl;
-    cout << string(40, '=') << endl;
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
 }

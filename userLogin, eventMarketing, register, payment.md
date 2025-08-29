@@ -1,3 +1,6 @@
+#ifndef COMMON_H
+#define COMMON_H
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -8,6 +11,7 @@
 #include <algorithm>
 #include <vector>
 #include <string>
+#include <random>
 using namespace std;
 
 const int MAX_EVENTS = 100;
@@ -19,6 +23,8 @@ const string EVENT_FILE = "event_data.txt";
 const string FEEDBACK_FILE = "feedback_data.txt";
 const string DISCOUNT_FILE = "discounted_event.txt";
 const string REGISTRATION_FILE = "registrations.txt";
+
+#endif
 
 struct UserRating {
     string userId;
@@ -39,6 +45,9 @@ struct Event {
     double originalPrice;
     double discount;
     double discountedPrice;
+    double pricePerHour;
+    double durationHours;
+    double totalPrice;
     bool isFeatured;
     bool isTopRated;
     bool isUpcoming;
@@ -67,15 +76,15 @@ struct User {
 };
 
 struct Registration {
-    int registrationID;
+    int registrationId;
     string participantName;
-    string participantID;
+    string participantId;
     string companyName;
     string phoneNumber;
-    int eventID;
+    int eventId;
     string eventName;
     string eventDate;
-    string eventVenue;
+    string eventLocation;
     string registrationDate;
     double amountPaid;
 };
@@ -88,18 +97,43 @@ struct Feedback {
     string date;
 };
 
+// Payment struct to store payment records
+struct Payment {
+    int userId = 0;
+    int registrationId = 0;  // Link to registration instead of bookingID
+    string paymentMethod = "";
+    double paymentAmount = 0.0;
+    string paymentDate = "";
+    string receiptId = "";
+    string eventName = "";
+    string participantName = "";
+    string participantId = "";
+    string cardNumber = "";      // For credit/debit card (masked)
+    string walletId = "";        // For TnG e-wallet
+    string eventDate = "";
+    string eventLocation = "";
+};
+
+// Function declarations
+int registrationMain() {
+
+}
+int paymentMain();
+void processImmediatePayment(const Registration& registration);
+
 struct SystemData {
     vector<User> users;
     vector<Event> events;
     vector<Registration> registrations;
     vector<Feedback> feedbacks;
-    int nextRegistrationID;
-    int nextEventID;
+    int nextRegistrationId;
+    int nextEventId;
 
-    SystemData() : nextRegistrationID(1), nextEventID(1) {}
+    SystemData() : nextRegistrationId(1), nextEventId(1) {}
 };
 
 void initializeSystem(SystemData& data);
+void addSampleData(SystemData& data);
 void displayHeader(const string& title);
 void displayMainMenu(SystemData& data);
 void login(SystemData& data);
@@ -120,12 +154,11 @@ void saveEventData(const SystemData& data);
 void loadEventData(SystemData& data);
 void loadDiscountedEvents(SystemData& data);
 void loadRegistrations(SystemData& data);
-void saveRegistrations(SystemData& data);
+void saveRegistrations(const SystemData& data);
 void loadFeedbacks(SystemData& data);
 void saveFeedbacks(const SystemData& data);
 void displayEvent(const Event& event);
 bool isEventFull(const Event& event);
-void addSampleData(SystemData& data);
 void createEvent(SystemData& data);
 void viewEvents(const SystemData& data);
 void viewFeedback(const SystemData& data);
@@ -134,20 +167,15 @@ bool isValidInput(const string& input);
 bool validatePhoneNum(const string& phoneNum);
 bool validatePassword(const string& password);
 bool validateDate(const string& date);
-bool isValidPhoneNum(const string& phoneNum);
 string getCurrentDate();
-string generateParticipantID();
-string generateUserID();
-vector<Registration> getUserRegistrations(const string& participantID, const SystemData& data);
+string generateParticipantId();
+string generateUserId();
+vector<Registration> getUserRegistrations(const string& participantId, const SystemData& data);
 vector<Registration> getUserRegistrationsByName(const string& participantName, const SystemData& data);
+vector<Registration> loadRegistrationsFromFile();
+vector<Event> loadEventsFromFile();
+vector<Registration> getRegistrationsByParticipantName(const string& participantName);
 void clearScreen();
-
-int main() {
-    SystemData systemData;
-    initializeSystem(systemData);
-    displayMainMenu(systemData);
-    return 0;
-}
 
 void initializeSystem(SystemData& data) {
     loadUserData(data);
@@ -166,9 +194,9 @@ void initializeSystem(SystemData& data) {
 void addSampleData(SystemData& data) {
     // Add sample events
     Event event1;
-    event1.eventId = data.nextEventID++;
+    event1.eventId = data.nextEventId++;
     event1.eventName = "Team Building Workshop";
-    event1.eventDate = "2024-09-15";
+    event1.eventDate = "15/09/2025";
     event1.eventLocation = "Conference Room A";
     event1.eventDescription = "A fun team building workshop to improve collaboration";
     event1.requiredEquipment = "Projector, Whiteboard";
@@ -182,9 +210,9 @@ void addSampleData(SystemData& data) {
     event1.isUpcoming = true;
 
     Event event2;
-    event2.eventId = data.nextEventID++;
+    event2.eventId = data.nextEventId++;
     event2.eventName = "Leadership Training";
-    event2.eventDate = "2024-09-20";
+    event2.eventDate = "20/09/2025";
     event2.eventLocation = "Training Hall B";
     event2.eventDescription = "Develop leadership skills for your team";
     event2.requiredEquipment = "Microphone, Laptop";
@@ -198,9 +226,9 @@ void addSampleData(SystemData& data) {
     event2.isUpcoming = true;
 
     Event event3;
-    event3.eventId = data.nextEventID++;
+    event3.eventId = data.nextEventId++;
     event3.eventName = "Communication Skills";
-    event3.eventDate = "2024-09-25";
+    event3.eventDate = "25/09/2025";
     event3.eventLocation = "Seminar Room C";
     event3.eventDescription = "Improve communication within your team";
     event3.requiredEquipment = "Flipchart, Markers";
@@ -359,7 +387,7 @@ void signUp(SystemData& data) {
     displayHeader("Team Building Event System");
     cout << "\n\tSign Up";
 
-    newUser.userId = generateUserID();
+    newUser.userId = generateUserId();
     cout << "\nYour User ID: " << newUser.userId << endl;
 
     cin.ignore();
@@ -765,15 +793,15 @@ void registerForEvent(SystemData& data, const string& userId) {
 
     // Create registration
     Registration newReg;
-    newReg.registrationID = data.nextRegistrationID++;
+    newReg.registrationId = data.nextRegistrationId++;
     newReg.participantName = currentUser.userName;
-    newReg.participantID = currentUser.userId;
+    newReg.participantId = currentUser.userId;
     newReg.companyName = currentUser.companyName;
     newReg.phoneNumber = currentUser.phoneNum;
-    newReg.eventID = selectedEvent->eventId;
+    newReg.eventId = selectedEvent->eventId;
     newReg.eventName = selectedEvent->eventName;
     newReg.eventDate = selectedEvent->eventDate;
-    newReg.eventVenue = selectedEvent->eventLocation;
+    newReg.eventLocation = selectedEvent->eventLocation;
     newReg.registrationDate = getCurrentDate();
     newReg.amountPaid = selectedEvent->discountedPrice;
 
@@ -793,10 +821,10 @@ void registerForEvent(SystemData& data, const string& userId) {
     saveUserData(data);
 
     cout << "\nRegistration successful!" << endl;
-    cout << "Registration ID: " << newReg.registrationID << endl;
+    cout << "Registration ID: " << newReg.registrationId << endl;
     cout << "Event: " << newReg.eventName << endl;
     cout << "Date: " << newReg.eventDate << endl;
-    cout << "Venue: " << newReg.eventVenue << endl;
+    cout << "Venue: " << newReg.eventLocation << endl;
     cout << "Amount Paid: RM" << fixed << setprecision(2) << newReg.amountPaid << endl;
 
     system("pause");
@@ -1028,8 +1056,8 @@ void loadEventData(SystemData& data) {
         }
 
         data.events.push_back(event);
-        if (event.eventId >= data.nextEventID) {
-            data.nextEventID = event.eventId + 1;
+        if (event.eventId >= data.nextEventId) {
+            data.nextEventId = event.eventId + 1;
         }
     }
     inFile.close();
@@ -1064,7 +1092,7 @@ void loadDiscountedEvents(SystemData& data) {
 void loadRegistrations(SystemData& data) {
     ifstream file(REGISTRATION_FILE);
     data.registrations.clear();
-    data.nextRegistrationID = 1;
+    data.nextRegistrationId = 1;
 
     if (!file.is_open()) {
         return;
@@ -1079,28 +1107,24 @@ void loadRegistrations(SystemData& data) {
         string token;
 
         getline(ss, token, '|');
-        reg.registrationID = stoi(token);
-        
+        reg.registrationId = stoi(token);
         getline(ss, reg.participantName, '|');
-        getline(ss, reg.participantID, '|');
+        getline(ss, reg.participantId, '|');
         getline(ss, reg.companyName, '|');
         getline(ss, reg.phoneNumber, '|');
-
         getline(ss, token, '|');
-        reg.eventID = stoi(token);
-
+        reg.eventId = stoi(token);
         getline(ss, reg.eventName, '|');
         getline(ss, reg.eventDate, '|');
-        getline(ss, reg.eventVenue, '|');
+        getline(ss, reg.eventLocation, '|');
         getline(ss, reg.registrationDate, '|');
-
         getline(ss, token, '|');
         reg.amountPaid = stod(token);
 
         data.registrations.push_back(reg);
 
-        if (reg.registrationID >= data.nextRegistrationID) {
-            data.nextRegistrationID = reg.registrationID + 1;
+        if (reg.registrationId >= data.nextRegistrationId) {
+            data.nextRegistrationId = reg.registrationId + 1;
         }
     }
     file.close();
@@ -1115,15 +1139,15 @@ void saveRegistrations(SystemData& data) {
     }
 
     for (const auto& reg : data.registrations) {
-        file << reg.registrationID << "|"
+        file << reg.registrationId << "|"
             << reg.participantName << "|"
-            << reg.participantID << "|"
+            << reg.participantId << "|"
             << reg.companyName << "|"
             << reg.phoneNumber << "|"
-            << reg.eventID << "|"
+            << reg.eventId << "|"
             << reg.eventName << "|"
             << reg.eventDate << "|"
-            << reg.eventVenue << "|"
+            << reg.eventLocation << "|"
             << reg.registrationDate << "|"
             << reg.amountPaid << "\n";
     }
@@ -1201,10 +1225,6 @@ bool validateDate(const string& date) {
     return all_of(day.begin(), day.end(), ::isdigit) && all_of(month.begin(), month.end(), ::isdigit) && all_of(year.begin(), year.end(), ::isdigit);
 }
 
-bool isValidPhoneNum(const string& phoneNum) {
-    return phoneNum.length() == PHONE_NUM_LENGTH && all_of(phoneNum.begin(), phoneNum.end(), ::isdigit);
-}
-
 string getCurrentDate() {
     time_t now = time(0);
     tm ltm;
@@ -1214,12 +1234,12 @@ string getCurrentDate() {
     return ss.str();
 }
 
-string generateParticipantID() {
+string generateParticipantId() {
     static int counter = 1000;
     return "P" + to_string(counter++);
 }
 
-string generateUserID() {
+string generateUserId() {
     static int userCounter = 1000;
     static int orgCounter = 100;
 
@@ -1232,10 +1252,10 @@ string generateUserID() {
     }
 }
 
-vector<Registration> getUserRegistrations(const string& participantID, const SystemData& data) {
+vector<Registration> getUserRegistrations(const string& participantId, const SystemData& data) {
     vector<Registration> userRegs;
     for (const auto& reg : data.registrations) {
-        if (reg.participantID == participantID) {
+        if (reg.participantId == participantId) {
             userRegs.push_back(reg);
         }
     }
@@ -1256,10 +1276,912 @@ bool isEventFull(const Event& event) {
     return event.currentParticipants >= event.maxParticipants;
 }
 
+// Utility functions
+vector<Registration> loadRegistrationsFromFile() {
+    vector<Registration> registrations;
+    ifstream file("registrations.txt");
+
+    if (!file.is_open()) {
+        return registrations;
+}
+
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        Registration reg;
+        string token;
+
+        getline(ss, token, '|');
+        reg.registrationId = stoi(token);
+        getline(ss, reg.participantName, '|');
+        getline(ss, reg.participantId, '|');
+        getline(ss, reg.companyName, '|');
+        getline(ss, reg.phoneNumber, '|');
+        getline(ss, token, '|');
+        reg.eventId = stoi(token);
+        getline(ss, reg.eventName, '|');
+        getline(ss, reg.eventDate, '|');
+        getline(ss, reg.eventLocation);
+
+        registrations.push_back(reg);
+    }
+    file.close();
+    return registrations;
+}
+
+vector<Event> loadEventsFromFile() {
+    vector<Event> events;
+    ifstream file("events.txt");
+
+    if (!file.is_open()) {
+        Event event1;
+        event1.eventId = 1;
+        event1.eventName = "Team Building Workshop";
+        event1.eventDate = "15/09/2025";
+        event1.eventLocation = "Conference Room A";
+        event1.requiredEquipment = "Projector, Whiteboard";
+        event1.pricePerHour = 75.0;
+        event1.durationHours = 4;
+        event1.totalPrice = 300.0;
+
+        Event event2;
+        event2.eventId = 2;
+        event2.eventName = "Leadership Training";
+        event2.eventDate = "20/09/2025";
+        event2.eventLocation = "Training Hall B";
+        event2.requiredEquipment = "Microphone, Laptop";
+        event2.pricePerHour = 100.0;
+        event2.durationHours = 6;
+        event2.totalPrice = 600.0;
+
+        Event event3; 
+        event3.eventId = 3; 
+        event3.eventName = "Communication Skills"; 
+        event3.eventDate = "25/09/2025";
+        event3.eventLocation = "Seminar Room C"; 
+        event3.requiredEquipment = "Flipchart, Markers";
+        event3.pricePerHour = 60.0; 
+        event3.durationHours = 3; 
+        event3.totalPrice = 180.0;
+
+        Event event4; 
+        event4.eventId = 4; 
+        event4.eventName = "Problem Solving Session"; 
+        event4.eventDate = "01/10/2025";
+        event4.eventLocation = "Workshop Room D"; 
+        event4.requiredEquipment = "Sticky Notes, Timer";
+        event4.pricePerHour = 80.0; 
+        event4.durationHours = 4; 
+        event4.totalPrice = 320.0;
+
+        Event event5; 
+        event5.eventId = 5; 
+        event5.eventName = "Networking Event"; 
+        event5.eventDate = "05/10/2025";
+        event5.eventLocation = "Main Hall"; 
+        event5.requiredEquipment = "Sound System, Refreshments";
+        event5.pricePerHour = 50.0; 
+        event5.durationHours = 2; 
+        event5.totalPrice = 100.0;
+        
+        events.push_back(event1);
+        events.push_back(event2);
+        events.push_back(event3);
+        events.push_back(event4);
+        events.push_back(event5);
+        return events;
+    }
+
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        Event event;
+        string token;
+
+        getline(ss, token, '|');
+        event.eventId = stoi(token);
+        getline(ss, event.eventName, '|');
+        getline(ss, event.eventDate, '|');
+        getline(ss, event.eventLocation, '|');
+        getline(ss, event.requiredEquipment);
+
+        if (event.eventName.find("Leadership") != string::npos) {
+            event.pricePerHour = 100.0;
+            event.durationHours = 6;
+        }
+        else if (event.eventName.find("Team Building") != string::npos) {
+            event.pricePerHour = 75.0;
+            event.durationHours = 4;
+        }
+        else if (event.eventName.find("Communication") != string::npos) {
+            event.pricePerHour = 60.0;
+            event.durationHours = 3;
+        }
+        else if (event.eventName.find("Problem Solving") != string::npos) {
+            event.pricePerHour = 80.0;
+            event.durationHours = 4;
+        }
+        else if (event.eventName.find("Networking") != string::npos) {
+            event.pricePerHour = 50.0;
+            event.durationHours = 2;
+        }
+        else {
+            event.pricePerHour = 70.0;
+            event.durationHours = 4;
+        }
+
+        event.totalPrice = event.pricePerHour * event.durationHours;
+        events.push_back(event);
+    }
+    file.close();
+    return events;
+}
+
+vector<Registration> getRegistrationsByParticipantName(const string& participantName) {
+    vector<Registration> allRegistrations = loadRegistrationsFromFile();
+    vector<Registration> userRegistrations;
+
+    for (const auto& reg : allRegistrations) {
+        if (reg.participantName == participantName) {
+            userRegistrations.push_back(reg);
+    }
+}
+
+    return userRegistrations;
+}
+
+Event getEventById(int eventId, const vector<Event>& events) {
+    for (const auto& event : events) {
+        if (event.eventId == eventId) {
+            return event;
+        }
+        }
+    // Return a properly initialized empty event to avoid access violations
+    Event emptyEvent;
+    emptyEvent.eventId = 0;
+    emptyEvent.eventName = "";
+    emptyEvent.eventDate = "";
+    emptyEvent.eventLocation = "";
+    emptyEvent.requiredEquipment = "";
+    emptyEvent.pricePerHour = 0.0;
+    emptyEvent.durationHours = 0;
+    emptyEvent.totalPrice = 0.0;
+    return emptyEvent;
+    }
+
+class IntegratedPaymentSystem {
+private:
+    vector<Payment> payments;
+    vector<Registration> registrations;
+    vector<Event> events;
+    static int nextPaymentId;
+
+    // Helper functions
+    string generateReceiptId();
+    string getCurrentDateTime();
+    string maskCardNumber(const string& cardNumber);
+    bool validateCardNumber(const string& cardNumber);
+    bool validateTnGWallet(const string& walletId);
+    void savePaymentToFile(const Payment& payment);
+
+public:
+    // Constructor
+    IntegratedPaymentSystem();
+
+    // Main payment functions
+    void displayUserRegistrations(const string& participantName);
+    Registration selectRegistrationForPayment(const string& participantName);
+    void displayPaymentSummary(const Registration& registration, const Event& event);
+    int paymentMethod();
+    bool processPayment(const Registration& registration, const Event& event, int method);
+    string generateReceipt(const Payment& payment);
+
+    // File operations
+    void loadPayments();
+    void savePayments();
+    void loadData();
+
+    // Validation functions
+    bool validateCreditCard(const string& cardNumber, const string& expiryDate, const string& cvv);
+    bool validateTnGEWallet(const string& walletId, const string& pin);
+
+    // Display functions
+    void displayPaymentHistory(const string& participantName = "");
+    void displayAllPayments();
+
+    // Utility functions
+    Payment createPaymentRecord(const Registration& registration, const Event& event, int method, const string& paymentDetails);
+    bool isValidAmount(double amount);
+    bool hasUnpaidRegistrations(const string& participantName);
+    bool isRegistrationPaid(int registrationId);
+};
+
+// Initialize static member
+int IntegratedPaymentSystem::nextPaymentId = 1;
+
+// Constructor
+IntegratedPaymentSystem::IntegratedPaymentSystem() {
+    loadData();
+    loadPayments();
+}
+
+// Load all data from files
+void IntegratedPaymentSystem::loadData() {
+    registrations = loadRegistrationsFromFile();
+    events = loadEventsFromFile();
+}
+
+// Display user's registrations
+void IntegratedPaymentSystem::displayUserRegistrations(const string& participantName) {
+    vector<Registration> userRegs = getRegistrationsByParticipantName(participantName);
+
+    if (userRegs.empty()) {
+        cout << "No registrations found for: " << participantName << "\n";
+        return;
+    }
+    
+    displayHeader("Team Building Event System");
+    cout << "\n\tYOUR REGISTERED EVENTS\n";
+    cout << left << setw(5) << "No." << setw(15) << "Reg ID"
+        << setw(25) << "Event Name" << setw(15) << "Date"
+        << setw(20) << "Venue" << setw(12) << "Status" << "\n";
+    cout << string(80, '-') << "\n";
+
+    for (size_t i = 0; i < userRegs.size(); i++) {
+        string status = isRegistrationPaid(userRegs[i].registrationId) ? "PAID" : "UNPAID";
+
+        cout << left << setw(5) << (i + 1)
+            << setw(15) << userRegs[i].registrationId
+            << setw(25) << userRegs[i].eventName
+            << setw(15) << userRegs[i].eventDate
+            << setw(20) << userRegs[i].eventLocation
+            << setw(12) << status << "\n";
+    }
+    cout << string(80, '=') << "\n";
+}
+
+// Select registration for payment
+Registration IntegratedPaymentSystem::selectRegistrationForPayment(const string& participantName) {
+    vector<Registration> userRegs = getRegistrationsByParticipantName(participantName);
+    vector<Registration> unpaidRegs;
+
+    // Filter unpaid registrations
+    for (const auto& reg : userRegs) {
+        if (!isRegistrationPaid(reg.registrationId)) {
+            unpaidRegs.push_back(reg);
+        }
+    }
+
+    if (unpaidRegs.empty()) {
+        cout << "All your registrations are already paid!\n";
+        return Registration{ 0, "", "", "", "", 0, "", "", "" , "", 0.0 }; // Return empty registration
+    }
+
+    cout << "\nSelect registration to pay for:\n";
+    for (size_t i = 0; i < unpaidRegs.size(); i++) {
+        Event event = getEventById(unpaidRegs[i].eventId, events);
+        cout << (i + 1) << ". " << event.eventName
+            << " - RM " << fixed << setprecision(2) << event.totalPrice << "\n";
+    }
+
+    int choice;
+    do {
+        cout << "Enter choice (1-" << unpaidRegs.size() << "): ";
+        cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        if (choice < 1 || choice > static_cast<int>(unpaidRegs.size())) {
+            cout << "Invalid choice! Please try again.\n";
+        }
+    } while (choice < 1 || choice > static_cast<int>(unpaidRegs.size()));
+
+    return unpaidRegs[choice - 1];
+}
+
+// Display payment summary
+void IntegratedPaymentSystem::displayPaymentSummary(const Registration& registration, const Event& event) {
+    displayHeader("Team Building Event System");
+    cout << "\n\tPAYMENT SUMMARY\n";
+    cout << "Registration ID: " << registration.registrationId << "\n";
+    cout << "Participant: " << registration.participantName << "\n";
+    cout << "Participant ID: " << registration.participantId << "\n";
+    cout << "Event: " << event.eventName << "\n";
+    cout << "Date: " << event.eventDate << "\n";
+    cout << "Venue: " << event.eventLocation << "\n";
+    cout << "Duration: " << event.durationHours << " hours\n";
+    cout << string(60, '-') << "\n";
+    cout << "Rate per Hour: RM " << fixed << setprecision(2) << event.pricePerHour << "\n";
+    cout << "Total Duration: " << event.durationHours << " hours\n";
+    cout << string(60, '-') << "\n";
+    cout << "TOTAL AMOUNT: RM " << fixed << setprecision(2) << event.totalPrice << "\n";
+    cout << string(60, '=') << "\n";
+}
+
+// Payment method selection
+int IntegratedPaymentSystem::paymentMethod() {
+    int choice;
+
+    displayHeader("Team Building Event System");
+    cout << "\n\tPAYMENT METHODS\n";
+    cout << "1. Credit/Debit Card\n";
+    cout << "2. TnG E-Wallet\n";
+    cout << "3. Cancel Payment\n";
+
+    do {
+        cout << "\nSelect payment method (1-3): ";
+        cin >> choice;
+        cin.ignore();
+
+        if (choice < 1 || choice > 3) {
+            cout << "Invalid choice! Please select 1, 2, or 3.\n";
+        }
+    } while (choice < 1 || choice > 3);
+
+    return choice;
+}
+
+// Process payment based on selected method
+bool IntegratedPaymentSystem::processPayment(const Registration& registration, const Event& event, int method) {
+    string paymentDetails = "";
+
+    switch (method) {
+    case 1: { // Credit/Debit Card
+        cout << "\n=== CREDIT/DEBIT CARD PAYMENT ===\n";
+
+        string cardNumber, expiryDate, cvv, cardholderName;
+
+        // Get card details with validation
+        do {
+            cout << "Enter Card Number (16 digits): ";
+            getline(cin, cardNumber);
+
+            if (!validateCardNumber(cardNumber)) {
+                cout << "Error: Card number must be exactly 16 digits!\n";
+            }
+        } while (!validateCardNumber(cardNumber));
+
+        cout << "Enter Cardholder Name: ";
+        getline(cin, cardholderName);
+
+        do {
+            cout << "Enter Expiry Date (MM/YY): ";
+            getline(cin, expiryDate);
+
+            if (expiryDate.length() != 5 || expiryDate[2] != '/') {
+                cout << "Error: Please enter date in MM/YY format!\n";
+                continue;
+            }
+            break;
+        } while (true);
+
+        do {
+            cout << "Enter CVV (3 digits): ";
+            getline(cin, cvv);
+
+            if (cvv.length() != 3 || !all_of(cvv.begin(), cvv.end(), ::isdigit)) {
+                cout << "Error: CVV must be exactly 3 digits!\n";
+            }
+        } while (cvv.length() != 3 || !all_of(cvv.begin(), cvv.end(), ::isdigit));
+
+        if (validateCreditCard(cardNumber, expiryDate, cvv)) {
+            paymentDetails = maskCardNumber(cardNumber);
+            cout << "\nProcessing payment...\n";
+            cout << "Payment successful!\n";
+
+            // Create and save payment record
+            Payment payment = createPaymentRecord(registration, event, method, paymentDetails);
+            payments.push_back(payment);
+            savePaymentToFile(payment);
+
+            // Display receipt
+            cout << generateReceipt(payment);
+            return true;
+        }
+        else {
+            cout << "Payment failed! Invalid card details.\n";
+            return false;
+        }
+    }
+
+    case 2: { // TnG E-Wallet
+        cout << "\n=== TNG E-WALLET PAYMENT ===\n";
+
+        string walletId, pin;
+
+        do {
+            cout << "Enter TnG Wallet ID (10 digits): ";
+            getline(cin, walletId);
+
+            if (!validateTnGWallet(walletId)) {
+                cout << "Error: Wallet ID must be exactly 10 digits!\n";
+            }
+        } while (!validateTnGWallet(walletId));
+
+        do {
+            cout << "Enter 6-digit PIN: ";
+            getline(cin, pin);
+
+            if (pin.length() != 6 || !all_of(pin.begin(), pin.end(), ::isdigit)) {
+                cout << "Error: PIN must be exactly 6 digits!\n";
+            }
+        } while (pin.length() != 6 || !all_of(pin.begin(), pin.end(), ::isdigit));
+
+        if (validateTnGEWallet(walletId, pin)) {
+            paymentDetails = "TnG-" + walletId;
+            cout << "\nProcessing payment...\n";
+            cout << "Payment successful!\n";
+
+            // Create and save payment record
+            Payment payment = createPaymentRecord(registration, event, method, paymentDetails);
+            payments.push_back(payment);
+            savePaymentToFile(payment);
+
+            // Display receipt
+            cout << generateReceipt(payment);
+            return true;
+        }
+        else {
+            cout << "Payment failed! Invalid wallet credentials.\n";
+            return false;
+        }
+    }
+
+    case 3: // Cancel
+        cout << "Payment cancelled.\n";
+        return false;
+
+    default:
+        cout << "Invalid payment method!\n";
+        return false;
+    }
+}
+
+// Generate and display receipt
+string IntegratedPaymentSystem::generateReceipt(const Payment& payment) {
+    stringstream receiptStream;
+
+    receiptStream << "\n" << string(50, '=') << "\n";
+    receiptStream << "              PAYMENT RECEIPT\n";
+    receiptStream << string(50, '=') << "\n";
+    receiptStream << "Receipt ID: " << payment.receiptId << "\n";
+    receiptStream << "Date/Time: " << payment.paymentDate << "\n";
+    receiptStream << string(50, '-') << "\n";
+    receiptStream << "Participant: " << payment.participantName << "\n";
+    receiptStream << "Participant ID: " << payment.participantId << "\n";
+    receiptStream << "Registration ID: " << payment.registrationId << "\n";
+    receiptStream << "Event: " << payment.eventName << "\n";
+    receiptStream << "Event Date: " << payment.eventDate << "\n";
+    receiptStream << "Event Venue: " << payment.eventLocation << "\n";
+    receiptStream << "Payment Method: " << payment.paymentMethod << "\n";
+
+    if (payment.paymentMethod == "Credit/Debit Card") {
+        receiptStream << "Card: " << payment.cardNumber << "\n";
+    }
+    else if (payment.paymentMethod == "TnG E-Wallet") {
+        receiptStream << "Wallet: " << payment.walletId << "\n";
+    }
+
+    receiptStream << string(50, '-') << "\n";
+    receiptStream << "Amount Paid: RM " << fixed << setprecision(2) << payment.paymentAmount << "\n";
+    receiptStream << string(50, '=') << "\n";
+    receiptStream << "Thank you for your payment!\n";
+    receiptStream << "Keep this receipt for your records.\n";
+    receiptStream << string(50, '=') << "\n";
+
+    return receiptStream.str();
+}
+
+// Load payments from file
+void IntegratedPaymentSystem::loadPayments() {
+    ifstream file("payments.txt");
+    payments.clear();
+    nextPaymentId = 1;
+
+    if (!file.is_open()) {
+        return; // File doesn't exist yet
+    }
+
+    string line;
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+
+        stringstream ss(line);
+        Payment payment;
+        string token;
+
+        getline(ss, token, '|');
+        payment.userId = stoi(token);
+        getline(ss, token, '|');
+        payment.registrationId = stoi(token);
+        getline(ss, payment.paymentMethod, '|');
+        getline(ss, token, '|');
+        payment.paymentAmount = stod(token);
+        getline(ss, payment.paymentDate, '|');
+        getline(ss, payment.receiptId, '|');
+        getline(ss, payment.eventName, '|');
+        getline(ss, payment.participantName, '|');
+        getline(ss, payment.participantId, '|');
+        getline(ss, payment.eventDate, '|');
+        getline(ss, payment.eventLocation, '|');
+        getline(ss, payment.cardNumber, '|');
+        getline(ss, payment.walletId);
+
+        payments.push_back(payment);
+
+        if (payment.userId >= nextPaymentId) {
+            nextPaymentId = payment.userId + 1;
+        }
+    }
+    file.close();
+}
+
+// Save all payments to file
+void IntegratedPaymentSystem::savePayments() {
+    ofstream file("payments.txt");
+
+    if (!file.is_open()) {
+        cout << "Error: Unable to save payments to file!\n";
+        return;
+    }
+
+    for (const auto& payment : payments) {
+        file << payment.userId << "|"
+            << payment.registrationId << "|"
+            << payment.paymentMethod << "|"
+            << payment.paymentAmount << "|"
+            << payment.paymentDate << "|"
+            << payment.receiptId << "|"
+            << payment.eventName << "|"
+            << payment.participantName << "|"
+            << payment.participantId << "|"
+            << payment.eventDate << "|"
+            << payment.eventLocation << "|"
+            << payment.cardNumber << "|"
+            << payment.walletId << "\n";
+    }
+    file.close();
+}
+
+// Save single payment to file (append)
+void IntegratedPaymentSystem::savePaymentToFile(const Payment& payment) {
+    ofstream file("payments.txt", ios::app);
+
+    if (!file.is_open()) {
+        cout << "Error: Unable to save payment to file!\n";
+        return;
+    }
+
+    file << payment.userId << "|"
+        << payment.registrationId << "|"
+        << payment.paymentMethod << "|"
+        << payment.paymentAmount << "|"
+        << payment.paymentDate << "|"
+        << payment.receiptId << "|"
+        << payment.eventName << "|"
+        << payment.participantName << "|"
+        << payment.participantId << "|"
+        << payment.eventDate << "|"
+        << payment.eventLocation << "|"
+        << payment.cardNumber << "|"
+        << payment.walletId << "\n";
+
+    file.close();
+}
+
+// Validate credit card number (16 digits)
+bool IntegratedPaymentSystem::validateCardNumber(const string& cardNumber) {
+    if (cardNumber.length() != 16) {
+        return false;
+    }
+
+    for (char c : cardNumber) {
+        if (!isdigit(c)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Validate TnG wallet ID (10 digits)
+bool IntegratedPaymentSystem::validateTnGWallet(const string& walletId) {
+    if (walletId.length() != 10) {
+        return false;
+    }
+
+    for (char c : walletId) {
+        if (!isdigit(c)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Validate credit card details
+bool IntegratedPaymentSystem::validateCreditCard(const string& cardNumber, const string& expiryDate, const string& cvv) {
+    // Basic validation - in real system would check with payment gateway
+    return validateCardNumber(cardNumber) &&
+        expiryDate.length() == 5 &&
+        cvv.length() == 3;
+}
+
+// Validate TnG e-wallet credentials
+bool IntegratedPaymentSystem::validateTnGEWallet(const string& walletId, const string& pin) {
+    // Basic validation - in real system would check with TnG API
+    return validateTnGWallet(walletId) && pin.length() == 6;
+}
+
+// Generate unique receipt ID
+string IntegratedPaymentSystem::generateReceiptId() {
+    static random_device rd;
+    static mt19937 gen(rd());
+    static uniform_int_distribution<> dis(100000, 999999);
+
+    return "RCP" + to_string(dis(gen));
+}
+
+// Get current date and time
+string IntegratedPaymentSystem::getCurrentDateTime() {
+    time_t now = time(0);
+    char dt[26];
+    ctime_s(dt, sizeof(dt), &now);
+    string dateTime(dt);
+    dateTime.pop_back(); // Remove newline character
+    return dateTime;
+}
+
+// Mask card number for security
+string IntegratedPaymentSystem::maskCardNumber(const string& cardNumber) {
+    if (cardNumber.length() != 16) {
+        return cardNumber;
+    }
+
+    return "**** **** **** ****" + cardNumber.substr(12, 4);
+}
+
+// Create payment record
+Payment IntegratedPaymentSystem::createPaymentRecord(const Registration& registration, const Event& event, int method, const string& paymentDetails) {
+    Payment payment;
+    payment.userId = nextPaymentId++;
+    payment.registrationId = registration.registrationId;
+    payment.paymentAmount = event.totalPrice;
+    payment.paymentDate = getCurrentDateTime();
+    payment.receiptId = generateReceiptId();
+    payment.eventName = event.eventName;
+    payment.eventDate = event.eventDate;
+    payment.eventLocation = event.eventLocation;
+    payment.participantName = registration.participantName;
+    payment.participantId = registration.participantId;
+
+    if (method == 1) { // Credit/Debit Card
+        payment.paymentMethod = "Credit/Debit Card";
+        payment.cardNumber = paymentDetails;
+    }
+    else if (method == 2) { // TnG E-Wallet
+        payment.paymentMethod = "TnG E-Wallet";
+        payment.cardNumber = "";
+        payment.walletId = paymentDetails;
+    }
+    else {
+        payment.paymentMethod = "Unknown";
+    }
+
+    return payment;
+}
+
+// Check if registration is already paid
+bool IntegratedPaymentSystem::isRegistrationPaid(int registrationId) {
+    for (const auto& payment : payments) {
+        if (payment.registrationId == registrationId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Check if user has unpaid registrations
+bool IntegratedPaymentSystem::hasUnpaidRegistrations(const string& participantName) {
+    vector<Registration> userRegs = getRegistrationsByParticipantName(participantName);
+
+    for (const auto& reg : userRegs) {
+        if (!isRegistrationPaid(reg.registrationId)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Display payment history for specific participant
+void IntegratedPaymentSystem::displayPaymentHistory(const string& participantName) {
+    vector<Payment> userPayments;
+
+    if (participantName.empty()) {
+        userPayments = payments;
+    }
+    else {
+        for (const auto& payment : payments) {
+            if (payment.participantName == participantName) {
+                userPayments.push_back(payment);
+            }
+        }
+    }
+
+    if (userPayments.empty()) {
+        cout << "No payment records found.\n";
+        return;
+    }
+
+    cout << "\n=== PAYMENT HISTORY ===\n";
+    cout << left << setw(8) << "ID" << setw(15) << "Participant"
+        << setw(20) << "Event" << setw(15) << "Method"
+        << setw(10) << "Amount" << setw(12) << "Receipt"
+        << "Date\n";
+    cout << string(100, '-') << "\n";
+
+    for (const auto& payment : userPayments) {
+        cout << left << setw(8) << payment.userId
+            << setw(15) << payment.participantName
+            << setw(20) << payment.eventName
+            << setw(15) << payment.paymentMethod
+            << setw(10) << fixed << setprecision(2) << payment.paymentAmount
+            << setw(12) << payment.receiptId
+            << payment.paymentDate << "\n";
+    }
+}
+
+// Display all payments (admin function)
+void IntegratedPaymentSystem::displayAllPayments() {
+    displayPaymentHistory("");
+}
+
+// Validate amount
+bool IntegratedPaymentSystem::isValidAmount(double amount) {
+    return amount > 0.0;
+}
+
+// Integrated payment system main function
+int paymentMain() {
+    IntegratedPaymentSystem paymentSystem;
+    int choice;
+
+    do {
+        displayHeader("Team Building Event System");
+        cout << "\n\tINTEGRATED PAYMENT SYSTEM\n";
+        cout << "1. Make Payment for Registered Event\n";
+        cout << "2. View My Payment History\n";
+        cout << "3. View All Payments (Admin)\n";
+        cout << "4. Return to Main Menu\n";
+        cout << "\nEnter choice: ";
+        cin >> choice;
+        cin.ignore();
+
+        switch (choice) {
+        case 1: {
+            cout << "\n=== MAKE PAYMENT ===\n";
+
+            string participantName;
+            cout << "Enter your name: ";
+            getline(cin, participantName);
+
+            // Display user's registrations
+            paymentSystem.displayUserRegistrations(participantName);
+
+            // Check if user has unpaid registrations
+            if (!paymentSystem.hasUnpaidRegistrations(participantName)) {
+                cout << "All your registrations are already paid!\n";
+                break;
+            }
+
+            // Select registration for payment
+            Registration selectedReg = paymentSystem.selectRegistrationForPayment(participantName);
+
+            if (selectedReg.registrationId == 0) {
+                break; // No valid registration selected
+            }
+
+            // Get event details
+            vector<Event> events = loadEventsFromFile();
+            Event selectedEvent = getEventById(selectedReg.eventId, events);
+
+            if (selectedEvent.eventId == 0) {
+                cout << "Error: Event details not found!\n";
+                break;
+            }
+
+            // Display payment summary
+            paymentSystem.displayPaymentSummary(selectedReg, selectedEvent);
+
+            // Get payment method
+            int method = paymentSystem.paymentMethod();
+
+            if (method != 3) {
+                bool success = paymentSystem.processPayment(selectedReg, selectedEvent, method);
+                if (success) {
+                    cout << "\nPayment completed successfully!\n";
+                    cout << "Your registration is now fully paid.\n";
+                }
+                else {
+                    cout << "\nPayment failed! Please try again.\n";
+                }
+            }
+            break;
+        }
+        case 2: {
+            string name;
+            cout << "Enter your name (or press Enter for all): ";
+            getline(cin, name);
+            paymentSystem.displayPaymentHistory(name);
+            break;
+        }
+        case 3:
+            paymentSystem.displayAllPayments();
+            break;
+        case 4:
+            cout << "Returning to main menu...\n";
+            break;
+        default:
+            cout << "Invalid choice! Please try again.\n";
+        }
+
+        if (choice != 4) {
+            cout << "\nPress Enter to continue...";
+            cin.get();
+        }
+
+    } while (choice != 4);
+
+    return 0;
+}
+
+// Function for immediate payment after registration
+void processImmediatePayment(const Registration& registration) {
+    IntegratedPaymentSystem paymentSystem;
+
+    // Get event details
+    vector<Event> events = loadEventsFromFile();
+    Event selectedEvent = getEventById(registration.eventId, events);
+
+    if (selectedEvent.eventId == 0) {
+        cout << "Error: Event details not found!\n";
+        return;
+    }
+
+    // Display payment summary
+    paymentSystem.displayPaymentSummary(registration, selectedEvent);
+
+    // Get payment method
+    int method = paymentSystem.paymentMethod();
+
+    if (method != 3) {
+        bool success = paymentSystem.processPayment(registration, selectedEvent, method);
+        if (success) {
+            cout << "\nPayment completed successfully!\n";
+            cout << "Your registration is now fully paid.\n";
+        }
+        else {
+            cout << "\nPayment failed! You can try again later through the Payment System menu.\n";
+        }
+    }
+    else {
+        cout << "\nPayment cancelled. You can make payment later through the Payment System menu.\n";
+        cout << "Remember your Registration ID: " << registration.registrationId << "\n";
+    }
+}
+
 void clearScreen() {
 #ifdef _WIN32
     system("cls");
 #else
     system("clear");
 #endif
+}
+
+int main() {
+    SystemData systemData;
+    initializeSystem(systemData);
+    displayMainMenu(systemData);
+    return 0;
 }

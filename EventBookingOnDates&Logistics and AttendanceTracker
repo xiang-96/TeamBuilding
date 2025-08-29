@@ -4,6 +4,8 @@
 #include <iomanip>
 #include <limits>
 #include <regex>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -19,7 +21,7 @@ struct Participant {
     int participantID;
     string name;
     int eventID;
-    string status; // Absent/Present
+    string status; 
 };
 
 vector<Event> events;
@@ -42,7 +44,84 @@ string getValidDate() {
     }
 }
 
-// Event Booking 
+void saveEvents() {
+    ofstream out("events.txt");
+    for (auto& e : events) {
+        out << e.eventID << "|"
+            << e.name << "|"
+            << e.date << "|"
+            << e.venue << "|";
+
+        for (size_t i = 0; i < e.equipment.size(); i++) {
+            out << e.equipment[i];
+            if (i != e.equipment.size() - 1) out << ",";
+        }
+        out << "\n";
+    }
+    out.close();
+}
+
+void loadEvents() {
+    ifstream in("events.txt");
+    if (!in) return; 
+
+    string line;
+    while (getline(in, line)) {
+        Event e;
+        string equipmentStr;
+
+        stringstream ss(line);
+        getline(ss, line, '|'); e.eventID = stoi(line);
+        getline(ss, e.name, '|');
+        getline(ss, e.date, '|');
+        getline(ss, e.venue, '|');
+        getline(ss, equipmentStr);
+
+        string eq;
+        stringstream eqss(equipmentStr);
+        while (getline(eqss, eq, ',')) {
+            if (!eq.empty()) e.equipment.push_back(eq);
+        }
+
+        events.push_back(e);
+        if (e.eventID >= nextEventID) nextEventID = e.eventID + 1;
+    }
+    in.close();
+}
+
+void saveParticipants() {
+    ofstream out("participants.txt");
+    for (auto& p : participants) {
+        out << p.participantID << "|"
+            << p.name << "|"
+            << p.eventID << "|"
+            << p.status << "\n";
+    }
+    out.close();
+}
+
+void loadParticipants() {
+    ifstream in("participants.txt");
+    if (!in) return;
+
+    string line;
+    while (getline(in, line)) {
+        Participant p;
+        stringstream ss(line);
+        string temp;
+
+        getline(ss, temp, '|'); p.participantID = stoi(temp);
+        getline(ss, p.name, '|');
+        getline(ss, temp, '|'); p.eventID = stoi(temp);
+        getline(ss, p.status);
+
+        participants.push_back(p);
+        if (p.participantID >= nextParticipantID) nextParticipantID = p.participantID + 1;
+    }
+    in.close();
+}
+
+// ================== Event Booking ==================
 void createEvent() {
     Event e;
     e.eventID = nextEventID++;
@@ -70,6 +149,7 @@ void createEvent() {
 
     events.push_back(e);
     cout << "Event created successfully!\n";
+    saveEvents();
 }
 
 void retrieveEvent() {
@@ -81,24 +161,20 @@ void retrieveEvent() {
     for (auto& e : events) {
         if (e.eventID == id) {
             cout << "\n========== Event Details ==========\n";
-            cout << "ID: " << e.eventID << "\n";
-            cout << "Name: " << e.name << "\n";
+            cout << "Event ID: " << e.eventID << "\n";
+            cout << "Event Name: " << e.name << "\n";
             cout << "Date: " << e.date << "\n";
             cout << "Venue: " << e.venue << "\n";
             if (!e.equipment.empty()) {
                 cout << "Equipment: ";
                 for (size_t i = 0; i < e.equipment.size(); i++) {
                     cout << e.equipment[i];
-                    if (i != e.equipment.size() - 1) {
-                        cout << ", ";
-                    }
+                    if (i != e.equipment.size() - 1) cout << ", ";
                 }
                 cout << endl;
+            } else {
+                cout << "Equipment: None\n";
             }
-            else {
-                cout << "Equipment: None" << endl;
-            }
-
             return;
         }
     }
@@ -152,6 +228,7 @@ void updateEvent() {
             }
 
             cout << "Event updated successfully!\n";
+            saveEvents();
             return;
         }
     }
@@ -165,9 +242,10 @@ void deleteEvent() {
     cin.ignore();
 
     for (auto it = events.begin(); it != events.end(); ++it) {
-        if (it -> eventID == id) {
+        if (it->eventID == id) {
             events.erase(it);
             cout << "Event deleted successfully!\n";
+            saveEvents();
             return;
         }
     }
@@ -182,18 +260,18 @@ void viewAllEvents() {
         cout << "Date: " << e.date << "\n";
         cout << "Venue: " << e.venue << "\n";
         cout << "Equipment: ";
-        if (e.equipment.empty()) {
-            cout << "None";
-        }
+        if (e.equipment.empty()) cout << "None";
         else {
-            for (auto& eq : e.equipment) cout << eq << ", ";
+            for (size_t i = 0; i < e.equipment.size(); i++) {
+                cout << e.equipment[i];
+                if (i != e.equipment.size() - 1) cout << ", ";
+            }
         }
-
-        cout << endl;
+        cout << "\n\n";
     }
 }
 
-// Attendance Tracker
+// ================== Attendance Tracker ==================
 void addParticipant() {
     Participant p;
     p.participantID = nextParticipantID++;
@@ -221,6 +299,7 @@ void addParticipant() {
     participants.push_back(p);
     cout << "Participant added successfully!\n";
     cout << "(Participant ID : " << p.participantID << ")\n";
+    saveParticipants();
 }
 
 void markAttendance() {
@@ -245,9 +324,9 @@ void markAttendance() {
             if (p.eventID == eid) {
                 p.status = "Present";
                 cout << "Attendance marked as Present!\n";
+                saveParticipants();
                 return;
-            }
-            else {
+            } else {
                 cout << "Participant not registered for this event!\n";
                 return;
             }
@@ -268,7 +347,7 @@ void viewAttendanceByEvent() {
         if (p.eventID == eid) {
             cout << "Participant ID: " << p.participantID << "\n";
             cout << "Name: " << p.name << "\n";
-            cout << "Status: " << p.status << "\n\n\n";
+            cout << "Status: " << p.status << "\n\n";
         }
     }
     cout << "=============================================\n";
@@ -285,7 +364,7 @@ void viewAllParticipants() {
     cout << "======================================\n";
 }
 
-// Menu 
+// ================== Menu ==================
 void eventBookingMenu() {
     int choice;
     do {
@@ -326,6 +405,9 @@ void attendanceTrackerMenu() {
 }
 
 int main() {
+    loadEvents();
+    loadParticipants();
+
     int choice;
     do {
         cout << "\n========== Main Menu ==========\n";
@@ -336,7 +418,11 @@ int main() {
         switch (choice) {
         case 1: eventBookingMenu(); break;
         case 2: attendanceTrackerMenu(); break;
-        case 0: cout << "Existing...\n"; break;
+        case 0:
+            cout << "Exiting...\n";
+            saveEvents();
+            saveParticipants();
+            break;
         default: cout << "Invalid choice!\n";
         }
     } while (choice != 0);

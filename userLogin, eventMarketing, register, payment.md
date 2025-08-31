@@ -71,6 +71,7 @@ struct User {
     string companyName;
     string password;
     bool rememberMe;
+    bool isOrganizer;
     vector<string> registeredEvents;
     vector<string> interests;
 };
@@ -245,7 +246,46 @@ void addSampleData(SystemData& data) {
     data.events.push_back(event2);
     data.events.push_back(event3);
 
+    // Add sample organizer accounts (pre-registered)
+    User organizer1;
+    organizer1.userId = "ORG1001";
+    organizer1.userName = "pingting";
+    organizer1.phoneNum = "0111111111";
+    organizer1.companyName = "Event Pro Management";
+    organizer1.password = "pro123";
+    organizer1.isOrganizer = true;
+
+    User organizer2;
+    organizer2.userId = "ORG1002";
+    organizer2.userName = "chiewchin";
+    organizer2.phoneNum = "0222222222";
+    organizer2.companyName = "Team Builders Incorporated";
+    organizer2.password = "team456";
+    organizer2.isOrganizer = true;
+
+    User organizer3;
+    organizer3.userId = "ORG1003";
+    organizer3.userName = "yongxiang";
+    organizer3.phoneNum = "0333333333";
+    organizer3.companyName = "Corporate Events Limited";
+    organizer3.password = "corp789";
+    organizer3.isOrganizer = true;
+
+    User organizer4;
+    organizer4.userId = "ORG1004";
+    organizer4.userName = "Premium Workshops";
+    organizer4.phoneNum = "0444444444";
+    organizer4.companyName = "Premium Workshops International";
+    organizer4.password = "premium123";
+    organizer4.isOrganizer = true;
+
+    data.users.push_back(organizer1);
+    data.users.push_back(organizer2);
+    data.users.push_back(organizer3);
+    data.users.push_back(organizer4);
+
     saveEventData(data);
+    saveUserData(data);
 }
 
 void displayHeader(const string& title) {
@@ -305,27 +345,25 @@ void displayMainMenu(SystemData& data) {
 void login(SystemData& data) {
     clearScreen();
     displayHeader("Team Building Event System");
-    cout << "\n\tLogin";
+    cout << "\n\t  Login";
 
-    string phoneNum, password;
-    cout << "\nEnter Phone Number (" << PHONE_NUM_LENGTH << " digits): ";
-    cin >> phoneNum;
-
-    while (!validatePhoneNum(phoneNum)) {
-        cout << "Invalid phone number format! Please try again: ";
-        cin >> phoneNum;
-    }
+    string identifier, password;
+    cout << "\nEnter Phone Number or Organizer ID: ";
+    cin >> identifier;
 
     cout << "Enter Password: ";
     cin >> password;
 
     string userId;
     string userName;
+    bool isOrganizer = false;
     bool found = false;
+
     for (const auto& user : data.users) {
-        if (user.phoneNum == phoneNum && user.password == password) {
+        if ((user.phoneNum == identifier || user.userId == identifier) && user.password == password) {
             userId = user.userId;
             userName = user.userName;
+            isOrganizer = user.isOrganizer;
             found = true;
 
             // Remember me functionality
@@ -349,7 +387,7 @@ void login(SystemData& data) {
         cout << "Login successful! Welcome, " << userName << "!" << endl;
         system("pause");
 
-        if (userId.substr(0, 2) == "OR") {
+        if (isOrganizer) {
             organizerDashboard(data, userId);
         }
         else {
@@ -385,9 +423,10 @@ void signUp(SystemData& data) {
     clearScreen();
     User newUser;
     displayHeader("Team Building Event System");
-    cout << "\n\tSign Up";
+    cout << "\n\tCustomer Sign Up";
 
     newUser.userId = generateUserId();
+    newUser.isOrganizer = false; // Only customers can sign up
     cout << "\nYour User ID: " << newUser.userId << endl;
 
     cin.ignore();
@@ -447,6 +486,7 @@ void signUp(SystemData& data) {
     saveUserData(data);
 
     cout << "Registration successful! Welcome, " << newUser.userName << "!" << endl;
+    cout << "Note: Organizer accounts are created by administrators only." << endl;
     system("pause");
 }
 
@@ -454,19 +494,14 @@ void forgotPassword(SystemData& data) {
     clearScreen();
     displayHeader("Team Building Event System");
     cout << "\n\tReset Password";
-    string phoneNum;
-    cout << "\nEnter your registered phone number: ";
-    cin >> phoneNum;
-
-    while (!validatePhoneNum(phoneNum)) {
-        cout << "Invalid phone number. Please try again: ";
-        cin >> phoneNum;
-    }
+    string identifier;
+    cout << "\nEnter your registered phone number or user ID: ";
+    cin >> identifier;
 
     // Find user by phone number
     User *targetUser = nullptr;
     for (auto& user : data.users) {
-        if (user.phoneNum == phoneNum) {
+        if (user.phoneNum == identifier || user.userId == identifier) {
             targetUser = &user;
             break;
         }
@@ -496,7 +531,7 @@ void forgotPassword(SystemData& data) {
         cout << "You can now login with your new password.\n";
     }
     else {
-        cout << "\nError: Phone number not found in our system.";
+        cout << "\nError: Phone number or user ID not found in our system.";
     }
 
     cout << "\nPress enter to return...";
@@ -526,7 +561,7 @@ void checkRememberedUser(SystemData& data) {
             if (tolower(choice) == 'y') {
                 cout << "Logging you in automatically..." << endl;
                 system("pause");
-                if (rememberedUser->userId.substr(0, 2) == "OR") {
+                if (rememberedUser->isOrganizer) {
                     organizerDashboard(data, rememberedUser->userId);
                 }
                 else {
@@ -923,7 +958,7 @@ void saveUserData(const SystemData& data) {
     }
 
     for (const auto& user : data.users) {
-        outFile << user.userId << "|" << user.userName << "|" << user.phoneNum << "|" << user.companyName << "|" << user.password << "|" << (user.rememberMe ? "1" : "0") << "|";
+        outFile << user.userId << "|" << user.userName << "|" << user.phoneNum << "|" << user.companyName << "|" << user.password << "|" << (user.rememberMe ? "1" : "0") << "|" << (user.isOrganizer ? "1" : "0") << "|";
             
         // Save registered events
         for (const auto& eventId : user.registeredEvents) {
@@ -960,6 +995,8 @@ void loadUserData(SystemData& data) {
         getline(ss, user.password, '|');
         getline(ss, token, '|'); // rememberMe
         user.rememberMe = (token == "1");
+        getline(ss, token, '|'); // isOrganizer
+        user.isOrganizer = (token == "1");
         
         // Registered events
         getline(ss, token, '|'); 
@@ -1241,15 +1278,7 @@ string generateParticipantId() {
 
 string generateUserId() {
     static int userCounter = 1000;
-    static int orgCounter = 100;
-
-    // Randomly decide if this is a regular user or organizer (1 in 5 chance for organizer)
-    if (rand() % 5 == 0) {
-        return "OR" + to_string(orgCounter++);
-    }
-    else {
-        return "US" + to_string(userCounter++);
-    }
+    return "US" + to_string(userCounter++);
 }
 
 vector<Registration> getUserRegistrations(const string& participantId, const SystemData& data) {

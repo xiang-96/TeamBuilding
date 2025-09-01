@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <cctype>
 #include <limits>
+#include <regex>
 #include <algorithm>
 #include <vector>
 #include <string>
@@ -52,6 +53,7 @@ struct Event {
     bool isTopRated;
     bool isUpcoming;
     vector<UserRating> ratings;
+    vector<string> equipment;
 
     // Calculate average rating
     double getAverageRating() const {
@@ -115,10 +117,15 @@ struct Payment {
     string eventLocation = "";
 };
 
-// Function declarations
-int registrationMain() {
+struct Participant {
+    int participantId;
+    string participantName;
+    int eventId;
+    string status; // Present / Absent
+};
 
-}
+// Function declarations
+int registrationMain();
 int paymentMain();
 void processImmediatePayment(const Registration& registration);
 
@@ -127,8 +134,11 @@ struct SystemData {
     vector<Event> events;
     vector<Registration> registrations;
     vector<Feedback> feedbacks;
+    vector<Participant> participants;
     int nextRegistrationId;
     int nextEventId;
+    int nextParticipantId;
+    int attendance[100][100] = { 0 };
 
     SystemData() : nextRegistrationId(1), nextEventId(1) {}
 };
@@ -151,18 +161,29 @@ void registerForEvent(SystemData& data, const string& userId);
 void provideFeedback(SystemData& data, const string& userId);
 void saveUserData(const SystemData& data);
 void loadUserData(SystemData& data);
-void saveEventData(const SystemData& data);
+void saveEventData(SystemData& data);
 void loadEventData(SystemData& data);
 void loadDiscountedEvents(SystemData& data);
-void loadRegistrations(SystemData& data);
-void saveRegistrations(const SystemData& data);
+void loadRegistrationData(SystemData& data);
+void saveRegistrationData(const SystemData& data);
 void loadFeedbacks(SystemData& data);
 void saveFeedbacks(const SystemData& data);
-void displayEvent(const Event& event);
-bool isEventFull(const Event& event);
+void loadParticipantData(SystemData& data);
+void saveParticipantData(SystemData& data);
 void createEvent(SystemData& data);
-void viewEvents(const SystemData& data);
-void viewFeedback(const SystemData& data);
+void searchEventByEventId(SystemData& data);
+void updateEvent(SystemData& data);
+void deleteEvent(SystemData& data);
+void viewAllEvents(SystemData& data);
+void displayEvent(const Event& event);
+void addParticipant(SystemData& data);
+void markAttendance(SystemData& data);
+void viewAttendanceByEvent(SystemData& data);
+void viewAllParticipants(SystemData& data);
+void deleteParticipant(SystemData& data);
+void eventBookingMenu(SystemData& data);
+void attendanceTrackerMenu(SystemData& data);
+bool isEventFull(const Event& event);
 void viewMyRegistrations(const SystemData& data, const string& userId);
 bool isValidInput(const string& input);
 bool validatePhoneNum(const string& phoneNum);
@@ -182,7 +203,7 @@ void initializeSystem(SystemData& data) {
     loadUserData(data);
     loadEventData(data);
     loadDiscountedEvents(data);
-    loadRegistrations(data);
+    loadRegistrationData(data);
     loadFeedbacks(data);
     checkRememberedUser(data);
 
@@ -385,7 +406,7 @@ void login(SystemData& data) {
 
     if (found) {
         cout << "Login successful! Welcome, " << userName << "!" << endl;
-        system("pause");
+        pauseScreen();
 
         if (isOrganizer) {
             organizerDashboard(data, userId);
@@ -487,7 +508,7 @@ void signUp(SystemData& data) {
 
     cout << "Registration successful! Welcome, " << newUser.userName << "!" << endl;
     cout << "Note: Organizer accounts are created by administrators only." << endl;
-    system("pause");
+    pauseScreen();
 }
 
 void forgotPassword(SystemData& data) {
@@ -625,14 +646,14 @@ void userDashboard(SystemData& data, const string& userId) {
     do {
         clearScreen();
         displayHeader("Team Building Event System");
-        cout << "\n\tUser Dashboard";
+        cout << "\n\t User Dashboard";
         cout << "\nWelcome, " << currentUser->userName << "!\n\n";
         cout << "\n1. View All Events";
         cout << "\n2. Register for Event";
         cout << "\n3. Provide Feedback for an Event";
-        cout << "\n4. View My Events";
+        cout << "\n4. View My Registrations";
         cout << "\n5. Logout";
-        cout << "\nEnter your choice (1-5): ";
+        cout << "\nEnter your choice: ";
         cin >> choice;
 
         switch (choice) {
@@ -663,44 +684,433 @@ void organizerDashboard(SystemData& data, const string& userId) {
     do {
         clearScreen();
         displayHeader("Team Building Event System");
-        cout << "\n\tOrganizer Dashboard";
-        cout << "\n1. Create Event";
-        cout << "\n2. View Events";
-        cout << "\n3. View Feedback";
-        cout << "\n4. Logout";
+        cout << "\n\t Organizer Dashboard";
+        cout << "\n1. Event Booking on Dates & Logistics";
+        cout << "\n2. Attendance Tracker";
+        cout << "\n3. Logout";
         cout << "\nEnter your choice: ";
         cin >> choice;
 
         switch (choice) {
         case 1:
-            createEvent(data);
+            eventBookingMenu(data);
             break;
         case 2:
-            viewEvents(data);
+            attendanceTrackerMenu(data);
             break;
         case 3:
-            viewFeedback(data);
-            break;
-        case 4:
             cout << "Logging out..." << endl;
             saveEventData(data);
+            saveParticipantData(data);
             break;
         default:
             cout << "Invalid choice! Please try again: " << endl;
         }
-    } while (choice != 4);
+    } while (choice != 3);
 }
 
 void createEvent(SystemData& data) {
+    Event e;
+    e.eventId = data.nextEventId++;
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t Create Event";
+    cout << "\n(Event ID: " << e.eventId << ")\n";
 
+    cout << "Enter event name: ";
+    getline(cin, e.eventName);
+    while (e.eventName.empty()) {
+        cout << "Error: Event name cannot be empty! Please enter event name: ";
+        getline(cin, e.eventName);
+    }
+
+    string dateInput;
+    bool validDate = false;
+    do {
+        cout << "Enter event date (DD/MM/YYYY): ";
+        getline(cin, dateInput);
+
+        if (validateDate(dateInput)) {
+            e.eventDate = dateInput;
+            validDate = true;
+        }
+        else {
+            cout << "Error: Invalid date format! Please use DD/MM/YYYY format.\n";
+        }
+    } while (!validDate);
+
+    cout << "Enter location: ";
+    getline(cin, e.eventLocation);
+    while (e.eventLocation.empty()) {
+        cout << "Error: Location cannot be empty! Please enter location: ";
+        getline(cin, e.eventLocation);
+    }
+
+    cout << "Enter event description: ";
+    getline(cin, e.eventDescription);
+
+    cout << "Enter maximum number of participants: ";
+    while (!(cin >> e.maxParticipants) || e.maxParticipants <= 0) {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Error: Please enter a positive number for maximum participants: ";
+    }
+
+    cout << "Enter original price (RM): ";
+    while (!(cin >> e.originalPrice) || e.originalPrice < 0) {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Error: Please enter a valid price (>= 0): ";
+    }
+
+    cout << "Enter discount amount (RM): ";
+    while (!(cin >> e.discount) || e.discount < 0 || e.discount > e.originalPrice) {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Error: Discount must be between 0 and " << e.originalPrice << ": ";
+    }
+
+    // Calculate discounted price
+    e.discountedPrice = e.originalPrice - e.discount;
+
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    int eqCount;
+    cout << "Enter number of required equipment (0 if none): ";
+    while (!(cin >> eqCount) || eqCount < 0) {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Error: Please enter a positive number: ";
+    }
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    for (int i = 0; i < eqCount; i++) {
+        string eq;
+        cout << "  Equipment " << i + 1 << ": ";
+        getline(cin, eq);
+        if (!eq.empty()) {
+            e.equipment.push_back(eq);
+        }
+    }
+
+    e.currentParticipants = 0;
+    e.isFeatured = false;
+    e.isTopRated = false;
+    e.isUpcoming = true;
+    e.ratings = vector<UserRating>();
+    e.pricePerHour = 0.0;
+    e.durationHours = 0.0;
+    e.totalPrice = 0.0;
+
+    data.events.push_back(e);
+    cout << "Event created successfully!\n";
+    saveEventData(data);
 }
 
-void viewEvents(const SystemData& data) {
+void searchEventByEventId(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t Search Event";
+    int eventId;
+    cout << "\nEnter Event ID to search: ";
+    cin >> eventId;
+    cin.ignore();
 
+    for (auto& e : data.events) {
+        if (e.eventId == eventId) {
+            cout << "\n============ Event Details ============\n";
+            cout << "Event ID   : " << e.eventId << "\n";
+            cout << "Name       : " << e.eventName << "\n";
+            cout << "Date       : " << e.eventDate << "\n";
+            cout << "Venue      : " << e.eventLocation << "\n";
+            cout << "Equipment  : ";
+            if (e.equipment.empty()) cout << "None";
+            else {
+                for (size_t i = 0; i < e.equipment.size(); i++) {
+                    cout << e.equipment[i];
+                    if (i != e.equipment.size() - 1) cout << ", ";
+                }
+            }
+            cout << "\n";
+            return;
+        }
+    }
+    cout << "Event not found!\n";
 }
 
-void viewFeedback(const SystemData& data) {
+void updateEvent(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t Update Event";
+    int id;
+    cout << "\nEnter Event ID to update: ";
+    cin >> id;
+    cin.ignore();
 
+    for (auto& e : data.events) {
+        if (e.eventId == id) {
+            string input;
+
+            cout << "Enter new name (press Enter to skip): ";
+            getline(cin, input);
+            if (!input.empty()) e.eventName = input;
+
+            cout << "Enter new date (YYYY-MM-DD, press Enter to skip): ";
+            getline(cin, input);
+            if (!input.empty()) {
+                while (!validateDate(input)) {
+                    cout << "Invalid format! Please use YYYY-MM-DD.\n";
+                    cout << "Enter new date again (or press Enter to skip): ";
+                    getline(cin, input);
+                    if (input.empty()) break;
+                }
+                if (!input.empty()) e.eventDate = input;
+            }
+
+            cout << "Enter new venue (press Enter to skip): ";
+            getline(cin, input);
+            if (!input.empty()) e.eventLocation = input;
+
+            cout << "Update equipment? (y/n): ";
+            getline(cin, input);
+            if (input == "y" || input == "Y") {
+                e.equipment.clear();
+                int eqCount;
+                cout << "Enter number of required equipment (0 if none): ";
+                cin >> eqCount;
+                cin.ignore();
+                for (int i = 0; i < eqCount; i++) {
+                    string eq;
+                    cout << "  Equipment " << i + 1 << ": ";
+                    getline(cin, eq);
+                    e.equipment.push_back(eq);
+                }
+            }
+
+            cout << "Event updated successfully!\n";
+            saveEventData(data);
+            return;
+        }
+    }
+    cout << "Event not found!\n";
+}
+
+void deleteEvent(SystemData& data) {
+    int eventId;
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t Delete Event";
+    cout << "\nEnter Event ID to delete: ";
+    cin >> eventId;
+    cin.ignore();
+
+    for (auto it = data.events.begin(); it != data.events.end(); ++it) {
+        if (it->eventId == eventId) {
+            data.events.erase(it);
+            cout << "Event deleted successfully!\n";
+            saveEventData(data);
+            return;
+        }
+    }
+    cout << "Event not found!\n";
+}
+
+void viewAllEvents(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t All Events\n";
+    cout << string(100, '-') << "\n";
+    cout << left << setw(5) << "ID"
+        << setw(30) << "Name"
+        << setw(15) << "Date"
+        << setw(25) << "Location"
+        << setw(15) << "Equipment" << "\n";
+    cout << string(100, '-') << "\n";
+
+    for (auto& e : data.events) {
+        cout << left << setw(5) << e.eventId
+            << setw(30) << e.eventName
+            << setw(15) << e.eventDate
+            << setw(25) << e.eventLocation;
+
+        if (e.equipment.empty()) cout << "None";
+        else {
+            for (size_t i = 0; i < e.equipment.size(); i++) {
+                cout << e.equipment[i];
+                if (i != e.equipment.size() - 1) cout << ", ";
+            }
+        }
+        cout << "\n";
+    }
+}
+
+void addParticipant(SystemData& data) {
+    Participant p;
+    p.participantId = data.nextParticipantId++;
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t Add Participant";
+    cout << "\nEnter participant name: ";
+    getline(cin, p.participantName);
+
+    cout << "Enter Event ID to register: ";
+    cin >> p.eventId;
+    cin.ignore();
+
+    bool found = false;
+    for (auto& e : data.events) {
+        if (e.eventId == p.eventId) {
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        cout << "Event not found! Participant not added.\n";
+        return;
+    }
+
+    p.status = "Absent";
+    data.participants.push_back(p);
+    data.attendance[p.participantId][p.eventId] = 0;
+
+    cout << "Participant added successfully!\n";
+    cout << "(Participant ID : " << p.participantId << ")\n";
+    saveParticipantData(data);
+}
+
+void markAttendance(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t Mark Attendance";
+    int pid, eid;
+    cout << "\nEnter Participant ID: ";
+    cin >> pid;
+    cout << "Enter Event ID: ";
+    cin >> eid;
+    cin.ignore();
+
+    for (auto& p : data.participants) {
+        if (p.participantId == pid && p.eventId == eid) {
+            p.status = "Present";
+            data.attendance[pid][eid] = 1;
+            cout << "Attendance marked as Present!\n";
+            saveParticipantData(data);
+            return;
+        }
+    }
+    cout << "Invalid participant or event!\n";
+}
+
+void viewAttendanceByEvent(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t View Attendance";
+    int eid;
+    cout << "\nEnter Event ID to view attendance: ";
+    cin >> eid;
+    cin.ignore();
+
+    cout << "\n========== Attendance for Event " << eid << " ==========\n";
+    cout << left << setw(5) << "PID"
+        << setw(20) << "Name"
+        << setw(10) << "Status" << "\n";
+    cout << string(40, '-') << "\n";
+
+    for (auto& p : data.participants) {
+        if (p.eventId == eid) {
+            cout << left << setw(5) << p.participantId
+                << setw(20) << p.participantName
+                << setw(10) << p.status << "\n";
+        }
+    }
+}
+
+void viewAllParticipants(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t All Participants";
+    cout << left << setw(5) << "Participant ID"
+        << setw(25) << "Name"
+        << setw(10) << "Event ID"
+        << setw(10) << "Status" << "\n";
+    cout << string(50, '-') << "\n";
+
+    for (auto& p : data.participants) {
+        cout << left << setw(5) << p.participantId
+            << setw(25) << p.participantName
+            << setw(10) << p.eventId
+            << setw(10) << p.status << "\n";
+    }
+}
+
+void deleteParticipant(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    cout << "\n\t Delete Participant";
+    int pid;
+    cout << "\nEnter Participant ID to delete: ";
+    cin >> pid;
+    cin.ignore();
+
+    for (auto it = data.participants.begin(); it != data.participants.end(); ++it) {
+        if (it->participantId == pid) {
+            data.attendance[it->participantId][it->eventId] = 0;
+
+            data.participants.erase(it);
+            cout << "Participant deleted successfully!\n";
+            saveParticipantData(data);
+            return;
+        }
+    }
+    cout << "Participant not found!\n";
+}
+
+void eventBookingMenu(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    int choice;
+    do {
+        cout << "\n\t Event Booking Menu";
+        cout << "\n1. Create Event\n2. Search Event By Event ID\n3. Update Event\n4. Delete Event\n5. View All Events\n6. Back\n\nEnter your choice: ";
+        cin >> choice;
+        cin.ignore();
+
+        switch (choice) {
+        case 1: createEvent(data); break;
+        case 2: searchEventByEventId(data); break;
+        case 3: updateEvent(data); break;
+        case 4: deleteEvent(data); break;
+        case 5: viewAllEvents(data); break;
+        case 6: break;
+        default: cout << "Invalid choice! Please try again: ";
+        }
+    } while (choice != 6);
+}
+
+void attendanceTrackerMenu(SystemData& data) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    int choice;
+    do {
+        cout << "\n\t Attendance Tracker Menu\n";
+        cout << "1. Add Participant\n";
+        cout << "2. Mark Attendance\n";
+        cout << "3. View Attendance by Event\n";
+        cout << "4. Delete Participant\n";
+        cout << "5. View All Participants\n";
+        cout << "6. Back\n\nEnter your choice: ";
+        cin >> choice;
+        cin.ignore();
+
+        switch (choice) {
+        case 1: addParticipant(data); break;
+        case 2: markAttendance(data); break;
+        case 3: viewAttendanceByEvent(data); break;
+        case 4: deleteParticipant(data); break;
+        case 5: viewAllParticipants(data); break;
+        case 6: break;
+        default: cout << "Invalid choice! Please enter again\n";
+        }
+    } while (choice != 6);
 }
 
 void displayEvents(const SystemData& data, bool showFeatured, bool showDiscounted, bool showTopRated) {
@@ -708,16 +1118,16 @@ void displayEvents(const SystemData& data, bool showFeatured, bool showDiscounte
     displayHeader("Team Building Event System");
 
     if (showFeatured) {
-        cout << "\n\tFeatured Events\n";
+        cout << "\n\t Featured Events\n";
     }
     else if (showDiscounted) {
-        cout << "\n\tDiscounted Events\n";
+        cout << "\n\t Discounted Events\n";
     }
     else if (showTopRated) {
-        cout << "\n\tTop Rated Events\n";
+        cout << "\n\t Top Rated Events\n";
     }
     else {
-        cout << "\n\tAll Events\n";
+        cout << "\n\t All Events\n";
     }
 
     vector<Event> filteredEvents;
@@ -762,8 +1172,8 @@ void displayEvent(const Event& event) {
 
 void registerForEvent(SystemData& data, const string& userId) {
     clearScreen();
-    displayHeader("Team Building Event");
-    cout << "\n\tRegister For Event\n";
+    displayHeader("Team Building Event System");
+    cout << "\n\t Register For Event\n";
 
     if (data.events.empty()) {
         cout << "No events available for registration." << endl;
@@ -851,7 +1261,7 @@ void registerForEvent(SystemData& data, const string& userId) {
         }
     }
 
-    saveRegistrations(data);
+    saveRegistrationData(data);
     saveEventData(data);
     saveUserData(data);
 
@@ -862,13 +1272,13 @@ void registerForEvent(SystemData& data, const string& userId) {
     cout << "Venue: " << newReg.eventLocation << endl;
     cout << "Amount Paid: RM" << fixed << setprecision(2) << newReg.amountPaid << endl;
 
-    system("pause");
+    pauseScreen();
 }
 
 void provideFeedback(SystemData& data, const string& userId) {
     clearScreen();
     displayHeader("Team Building Event System");
-    cout << "\n\tProvide Feedback\n";
+    cout << "\n\t Provide Feedback\n";
     // Get user's registered events
     vector<int> registeredEventIds;
     for (const auto& user : data.users) {
@@ -943,11 +1353,7 @@ void provideFeedback(SystemData& data, const string& userId) {
     saveEventData(data);
 
     cout << "Thank you for your feedback!\n";
-    system("pause");
-}
-
-void viewMyRegistrations(const SystemData& data, const string& userId) {
-
+    pauseScreen();
 }
 
 void saveUserData(const SystemData& data) {
@@ -1017,8 +1423,40 @@ void loadUserData(SystemData& data) {
     inFile.close();
 }
 
-void saveEventData(const SystemData& data) {
+void saveEventData(SystemData& data) {
+    ofstream outFile(EVENT_FILE);
+    if (!outFile.is_open()) {
+        cout << "Error saving event data!\n";
+        return;
+    }
 
+    for (const auto& event : data.events) {
+        outFile << event.eventId << "|"
+            << event.eventName << "|"
+            << event.eventDate << "|"
+            << event.eventLocation << "|"
+            << event.eventDescription << "|"
+            << event.requiredEquipment << "|"
+            << event.maxParticipants << "|"
+            << event.currentParticipants << "|"
+            << event.originalPrice << "|"
+            << event.discount << "|"
+            << event.discountedPrice << "|"
+            << (event.isFeatured ? "1" : "0") << "|"
+            << (event.isTopRated ? "1" : "0") << "|"
+            << (event.isUpcoming ? "1" : "0") << "|";
+
+        // Save ratings
+        for (size_t i = 0; i < event.ratings.size(); i++) {
+            const auto& rating = event.ratings[i];
+            outFile << rating.userId << "," << rating.score << "," << rating.comment << "," << rating.date;
+            if (i != event.ratings.size() - 1) {
+                outFile << ";";
+            }
+        }
+        outFile << "\n";
+    }
+    outFile.close();
 }
 
 void loadEventData(SystemData& data) {
@@ -1038,7 +1476,7 @@ void loadEventData(SystemData& data) {
 
         getline(ss, token, '|');
         event.eventId = stoi(token);
-        
+
         getline(ss, event.eventName, '|');
         getline(ss, event.eventDate, '|');
         getline(ss, event.eventLocation, '|');
@@ -1126,7 +1564,7 @@ void loadDiscountedEvents(SystemData& data) {
     }
 }
 
-void loadRegistrations(SystemData& data) {
+void loadRegistrationData(SystemData& data) {
     ifstream file(REGISTRATION_FILE);
     data.registrations.clear();
     data.nextRegistrationId = 1;
@@ -1167,7 +1605,7 @@ void loadRegistrations(SystemData& data) {
     file.close();
 }
 
-void saveRegistrations(SystemData& data) {
+void saveRegistrationData(SystemData& data) {
     ofstream file(REGISTRATION_FILE);
 
     if (!file.is_open()) {
@@ -1239,6 +1677,40 @@ void saveFeedbacks(const SystemData& data) {
     file.close();
 }
 
+void loadParticipantData(SystemData& data) {
+    ifstream in("participants.txt");
+    if (!in) return;
+
+    string line;
+    while (getline(in, line)) {
+        Participant p;
+        stringstream ss(line);
+        string temp;
+
+        getline(ss, temp, '|'); p.participantId = stoi(temp);
+        getline(ss, p.participantName, '|');
+        getline(ss, temp, '|'); p.eventId = stoi(temp);
+        getline(ss, p.status);
+
+        data.participants.push_back(p);
+        if (p.participantId >= data.nextParticipantId) data.nextParticipantId = p.participantId + 1;
+
+        if (p.status == "Present") data.attendance[p.participantId][p.eventId] = 1;
+    }
+    in.close();
+}
+
+void saveParticipantData(SystemData& data) {
+    ofstream out("participants.txt");
+    for (auto& p : data.participants) {
+        out << p.participantId << "|"
+            << p.participantName << "|"
+            << p.eventId << "|"
+            << p.status << "\n";
+    }
+    out.close();
+}
+
 bool isValidInput(const string& input) {
     return !input.empty() && input.find_first_not_of(" \t\n\r") != string::npos;
 }
@@ -1299,6 +1771,48 @@ vector<Registration> getUserRegistrationsByName(const string& participantName, c
         }
     }
     return userRegs;
+}
+
+void viewMyRegistrations(const SystemData& data, const string& userId) {
+    clearScreen();
+    displayHeader("Team Building Event System");
+    displayHeader("\n\t My Registrations");
+
+    cout << "\nYour registered events:\n";
+    cout << string(60, '-') << "\n";
+
+    bool found = false;
+    for (const auto& reg : data.registrations) {
+        if (reg.participantId == userId) {
+            found = true;
+            cout << "Registration ID: " << reg.registrationId << "\n";
+            cout << "Event: " << reg.eventName << "\n";
+            cout << "Date: " << reg.eventDate << "\n";
+            cout << "Location: " << reg.eventLocation << "\n";
+            cout << "Amount Paid: RM" << fixed << setprecision(2) << reg.amountPaid << "\n";
+            cout << string(60, '-') << "\n";
+        }
+    }
+
+    if (!found) {
+        cout << "You haven't registered for any events yet.\n";
+    }
+
+    cout << "Press Enter to continue...";
+    cin.ignore();
+    cin.get();
+}
+
+int registrationMain() {
+    return 0;
+}
+
+int paymentMain() {
+    return 0;
+}
+
+void processImmediatePayment(const Registration& registration) {
+    // Implementation would go here
 }
 
 bool isEventFull(const Event& event) {
@@ -1554,7 +2068,7 @@ void IntegratedPaymentSystem::displayUserRegistrations(const string& participant
     }
     
     displayHeader("Team Building Event System");
-    cout << "\n\tYOUR REGISTERED EVENTS\n";
+    cout << "\n\t YOUR REGISTERED EVENTS\n";
     cout << left << setw(5) << "No." << setw(15) << "Reg ID"
         << setw(25) << "Event Name" << setw(15) << "Date"
         << setw(20) << "Venue" << setw(12) << "Status" << "\n";
@@ -1614,7 +2128,7 @@ Registration IntegratedPaymentSystem::selectRegistrationForPayment(const string&
 // Display payment summary
 void IntegratedPaymentSystem::displayPaymentSummary(const Registration& registration, const Event& event) {
     displayHeader("Team Building Event System");
-    cout << "\n\tPAYMENT SUMMARY\n";
+    cout << "\n\t PAYMENT SUMMARY\n";
     cout << "Registration ID: " << registration.registrationId << "\n";
     cout << "Participant: " << registration.participantName << "\n";
     cout << "Participant ID: " << registration.participantId << "\n";
@@ -1633,9 +2147,9 @@ void IntegratedPaymentSystem::displayPaymentSummary(const Registration& registra
 // Payment method selection
 int IntegratedPaymentSystem::paymentMethod() {
     int choice;
-
+    clearScreen();
     displayHeader("Team Building Event System");
-    cout << "\n\tPAYMENT METHODS\n";
+    cout << "\n\t PAYMENT METHODS\n";
     cout << "1. Credit/Debit Card\n";
     cout << "2. TnG E-Wallet\n";
     cout << "3. Cancel Payment\n";
@@ -2043,7 +2557,8 @@ void IntegratedPaymentSystem::displayPaymentHistory(const string& participantNam
         return;
     }
 
-    cout << "\n=== PAYMENT HISTORY ===\n";
+    displayHeader("Team Building Event System");
+    cout << "\n\tPAYMENT HISTORY\n";
     cout << left << setw(8) << "ID" << setw(15) << "Participant"
         << setw(20) << "Event" << setw(15) << "Method"
         << setw(10) << "Amount" << setw(12) << "Receipt"
@@ -2083,7 +2598,7 @@ int paymentMain() {
         cout << "2. View My Payment History\n";
         cout << "3. View All Payments (Admin)\n";
         cout << "4. Return to Main Menu\n";
-        cout << "\nEnter choice: ";
+        cout << "\nEnter your choice: ";
         cin >> choice;
         cin.ignore();
 
@@ -2200,6 +2715,12 @@ void processImmediatePayment(const Registration& registration) {
     }
 }
 
+void pauseScreen() {
+    cout << "Press Enter to continue...";
+    cin.ignore();
+    cin.get();
+}
+
 void clearScreen() {
 #ifdef _WIN32
     system("cls");
@@ -2210,7 +2731,23 @@ void clearScreen() {
 
 int main() {
     SystemData systemData;
-    initializeSystem(systemData);
+
+    systemData.nextEventId = 1;
+    systemData.nextRegistrationId = 1;
+    systemData.nextParticipantId = 1;
+
+    loadUserData(systemData);
+    loadEventData(systemData);
+    loadRegistrationData(systemData);
+    loadFeedbacks(systemData);
+    loadParticipantData(systemData);
+    loadDiscountedEvents(systemData);
+
+    if (systemData.events.empty()) {
+        addSampleData(systemData);
+    }
+
     displayMainMenu(systemData);
+
     return 0;
 }

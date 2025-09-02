@@ -354,39 +354,68 @@ void viewAttendanceByEvent(SystemData& data) {
 }
 
 void viewAllParticipants(SystemData& data) {
-    cout << "\n=============== All Participants ===============\n";
-    cout << left << setw(5) << "ID"
-        << setw(25) << "Name"
-        << setw(10) << "EventID"
-        << setw(10) << "Status" << "\n";
-    cout << string(50, '-') << "\n";
+    clearScreen();
+    displayHeader("All Participants");
 
-    for (auto& p : data.participants) {
-        cout << left << setw(5) << p.participantID
-            << setw(25) << p.name
-            << setw(10) << p.eventID
-            << setw(10) << p.status << "\n";
+    if (data.participants.empty()) {
+        cout << "\nNo participant found!\n";  
+        pauseScreen();
+        return; 
     }
+
+    cout << left << setw(10) << "ID"
+         << setw(20) << "Name"
+         << setw(10) << "EventID"
+         << setw(15) << "Status" << endl;
+    cout << string(60, '-') << endl;
+
+    for (const auto& p : data.participants) {
+        cout << left << setw(10) << p.participantId
+             << setw(20) << p.participantName
+             << setw(10) << p.eventId
+             << setw(15) << p.status << endl;
+    }
+
+    pauseScreen();
 }
 
 void deleteParticipant(SystemData& data) {
-    int pid;
+    clearScreen();
+    displayHeader("Delete Participant");
+
+    if (data.participants.empty()) {
+        cout << "\nNo participant found!\n"; 
+        pauseScreen();
+        return; 
+    }
+
+    int id;
     cout << "Enter Participant ID to delete: ";
-    cin >> pid;
-    cin.ignore();
+    cin >> id;
 
-    for (auto it = data.participants.begin(); it != data.participants.end(); ++it) {
-        if (it->participantID == pid) {
-            data.attendance[it->participantID][it->eventID] = 0;
+    auto it = find_if(data.participants.begin(), data.participants.end(),
+        [id](const Participant& p) { return p.participantId == id; });
 
+    if (it != data.participants.end()) {
+        char confirm;
+        cout << "Are you sure you want to delete participant "
+             << it->participantName << " (ID: " << it->participantId << ")? (y/n): ";
+        cin >> confirm;
+
+        if (tolower(confirm) == 'y') {  
             data.participants.erase(it);
             cout << "Participant deleted successfully!\n";
-            saveParticipants(data);
-            return;
+            saveParticipantData(data);
+        } else {
+            cout << "Delete cancelled.\n"; 
         }
+    } else {
+        cout << "Participant not found!\n";
     }
-    cout << "Participant not found!\n";
+
+    pauseScreen();
 }
+
 
 // ================== Menu ==================
 void eventBookingMenu(SystemData& data) {
